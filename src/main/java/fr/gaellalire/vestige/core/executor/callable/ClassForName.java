@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core.callable;
+package fr.gaellalire.vestige.core.executor.callable;
 
 import java.util.concurrent.Callable;
 
 /**
  * @author Gael Lalire
  */
-public class CreateThread implements Callable<Thread> {
+public class ClassForName implements Callable<Class<?>> {
 
-    private String name;
+    private ClassLoader classLoader;
 
-    private Runnable runnable;
+    private String className;
 
-    public CreateThread(final String name, final Runnable runnable) {
-        this.name = name;
-        this.runnable = runnable;
+    public ClassForName(final ClassLoader classLoader, final String className) {
+        this.classLoader = classLoader;
+        this.className = className;
     }
 
-    public Thread call() {
-        return new Thread(runnable, name);
+    public Class<?> call() throws ClassNotFoundException {
+        return Class.forName(className, true, classLoader);
     }
 
 }

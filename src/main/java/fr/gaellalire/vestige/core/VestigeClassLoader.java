@@ -88,7 +88,11 @@ public final class VestigeClassLoader<E> extends URLClassLoader {
                 }
             }
         }
-        throw new VestigeClassNotFoundException(name, toString());
+        if (data != null) {
+            throw new ClassNotFoundException(name + " in " + data.toString());
+        } else {
+            throw new ClassNotFoundException(name);
+        }
     }
 
     public URL superGetResource(final String name) {

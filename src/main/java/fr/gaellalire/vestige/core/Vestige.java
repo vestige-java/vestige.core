@@ -16,11 +16,17 @@
 
 package fr.gaellalire.vestige.core;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
+import fr.gaellalire.vestige.core.executor.VestigeExecutor;
 import fr.gaellalire.vestige.core.parser.NoStateStringParser;
 import fr.gaellalire.vestige.core.parser.StringParser;
 
@@ -29,36 +35,88 @@ import fr.gaellalire.vestige.core.parser.StringParser;
  */
 public final class Vestige {
 
-    public static void main(final String[] args) throws Exception {
-        if (args.length < 2) {
-            throw new IllegalArgumentException("expecting 2 args : classpath and mainClass");
+    private static void addClasspath(final File directory, final List<URL> urlList, final String classpath) throws MalformedURLException {
+        int pindex = 0;
+        int index = classpath.indexOf(File.pathSeparatorChar);
+        while (index != -1) {
+            if (pindex != index) {
+                urlList.add(new File(directory, classpath.substring(pindex, index)).toURI().toURL());
+            }
+            pindex = index + 1;
+            index = classpath.indexOf(File.pathSeparatorChar, pindex);
         }
-        String classpath = args[0];
-        String mainclass = args[1];
-        String[] split = classpath.split(File.pathSeparator);
-        URL[] urls = new URL[split.length];
-        for (int i = 0; i < split.length; i++) {
-            urls[i] = new File(split[i]).toURI().toURL();
+        if (pindex != classpath.length()) {
+            urlList.add(new File(directory, classpath.substring(pindex)).toURI().toURL());
         }
-        String[] dargs = new String[args.length - 2];
-        System.arraycopy(args, 2, dargs, 0, dargs.length);
+    }
 
-        Class.forName(VestigeExecutor.class.getName(), true, ClassLoader.getSystemClassLoader());
+    public static void main(final String[] args) throws Exception {
+        int argIndex = 0;
+        File directory = null;
+        File classpathFile = null;
+        if ("cp".equals(args[argIndex])) {
+        } else if ("rcp".equals(args[argIndex])) {
+            directory = new File(args[++argIndex]);
+        } else if ("fcp".equals(args[argIndex])) {
+            classpathFile = new File(args[++argIndex]);
+        } else if ("frcp".equals(args[argIndex])) {
+            directory = new File(args[++argIndex]);
+            classpathFile = new File(args[++argIndex]);
+        } else {
+            throw new IllegalArgumentException();
+        }
+
+        List<URL> urlList = new ArrayList<URL>();
+        if (classpathFile == null) {
+            String classpath = args[++argIndex];
+            addClasspath(directory, urlList, classpath);
+        } else {
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(classpathFile));
+            try {
+                String line = bufferedReader.readLine();
+                while (line != null) {
+                    addClasspath(directory, urlList, line);
+                    line = bufferedReader.readLine();
+                }
+            } finally {
+                bufferedReader.close();
+            }
+        }
+        String mainclass = args[++argIndex];
+        URL[] urls = new URL[urlList.size()];
+        urlList.toArray(urls);
+
+        String[] dargs = new String[args.length - argIndex];
+        System.arraycopy(args, argIndex, dargs, 0, dargs.length);
 
         StringParser stringParser = new NoStateStringParser(0);
         VestigeClassLoader<Void> vestigeClassLoader = new VestigeClassLoader<Void>(ClassLoader.getSystemClassLoader(), Collections.singletonList(Collections
                 .<VestigeClassLoader<Void>> singletonList(null)), stringParser, stringParser, urls);
-        runMain(vestigeClassLoader, mainclass, dargs);
+        runMain(vestigeClassLoader, mainclass, null, dargs);
     }
 
-    public static void runMain(final ClassLoader classLoader, final String mainclass, final String[] dargs) throws Exception {
+    public static void runMain(final ClassLoader classLoader, final String mainclass, final VestigeExecutor vestigeExecutor, final String[] dargs) throws Exception {
         Class<?> loadClass = classLoader.loadClass(mainclass);
-        Method method = loadClass.getMethod("main", String[].class);
-        Thread.currentThread().setContextClassLoader(classLoader);
         try {
-            method.invoke(null, new Object[] {dargs});
-        } finally {
-            Thread.currentThread().setContextClassLoader(null);
+            Method method = loadClass.getMethod("vestigeCoreMain", VestigeExecutor.class, String[].class);
+            Thread.currentThread().setContextClassLoader(classLoader);
+            try {
+                if (vestigeExecutor == null) {
+                    method.invoke(null, new Object[] {new VestigeExecutor(), dargs});
+                } else {
+                    method.invoke(null, new Object[] {vestigeExecutor, dargs});
+                }
+            } finally {
+                Thread.currentThread().setContextClassLoader(null);
+            }
+        } catch (NoSuchMethodException e) {
+            Method method = loadClass.getMethod("main", String[].class);
+            Thread.currentThread().setContextClassLoader(classLoader);
+            try {
+                method.invoke(null, new Object[] {dargs});
+            } finally {
+                Thread.currentThread().setContextClassLoader(null);
+            }
         }
     }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core.callable;
+package fr.gaellalire.vestige.core.executor.callable;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

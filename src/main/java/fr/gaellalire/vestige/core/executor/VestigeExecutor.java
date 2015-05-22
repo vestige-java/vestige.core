@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core;
+package fr.gaellalire.vestige.core.executor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -26,10 +26,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
-import fr.gaellalire.vestige.core.callable.ClassForName;
-import fr.gaellalire.vestige.core.callable.CreateThread;
-import fr.gaellalire.vestige.core.callable.CreateVestigeClassLoader;
-import fr.gaellalire.vestige.core.callable.InvokeMethod;
+import fr.gaellalire.vestige.core.VestigeClassLoader;
+import fr.gaellalire.vestige.core.executor.callable.ClassForName;
+import fr.gaellalire.vestige.core.executor.callable.CreateThread;
+import fr.gaellalire.vestige.core.executor.callable.CreateVestigeClassLoader;
+import fr.gaellalire.vestige.core.executor.callable.InvokeMethod;
 import fr.gaellalire.vestige.core.parser.StringParser;
 
 /**
@@ -39,8 +40,18 @@ public final class VestigeExecutor {
 
     private LinkedList<Runnable> tasks;
 
+    private LinkedList<FutureTask<Thread>> workerCreationTasks = new LinkedList<FutureTask<Thread>>();
+
+    private Thread workerCreatorThread;
+
     public VestigeExecutor() {
         tasks = new LinkedList<Runnable>();
+        workerCreatorThread = new Thread(new VestigeExecutorWorkerFactory(workerCreationTasks), "vestige-worker-creator");
+        workerCreatorThread.setDaemon(true);
+        workerCreatorThread.start();
+        Thread workerCreatorReaperThread = new Thread(new VestigeExecutorWorkerFactoryReaper(this, workerCreatorThread), "vestige-worker-creator-reaper");
+        workerCreatorReaperThread.setDaemon(true);
+        workerCreatorReaperThread.start();
     }
 
     public <V> Future<V> submit(final Callable<V> callable) {
@@ -109,34 +120,6 @@ public final class VestigeExecutor {
         }
     }
 
-    private static final LinkedList<FutureTask<Thread>> CREATE_THREADS = new LinkedList<FutureTask<Thread>>();
-
-    private static final Thread WORKER_FACTORY_THREAD;
-
-    static {
-        WORKER_FACTORY_THREAD = new Thread("vestige-worker-factory") {
-            @Override
-            public void run() {
-                mainloop: while (true) {
-                    Runnable task;
-                    synchronized (CREATE_THREADS) {
-                        while (CREATE_THREADS.isEmpty()) {
-                            try {
-                                CREATE_THREADS.wait();
-                            } catch (InterruptedException e) {
-                                break mainloop;
-                            }
-                        }
-                        task = CREATE_THREADS.removeFirst();
-                    }
-                    task.run();
-                }
-            }
-        };
-        WORKER_FACTORY_THREAD.setDaemon(true);
-        WORKER_FACTORY_THREAD.start();
-    }
-
     public Thread createWorker(final String name, final boolean daemon, final int maxActions) throws InterruptedException {
         if (maxActions < 0) {
             throw new IllegalArgumentException("maxActions must be positive integer");
@@ -185,10 +168,10 @@ public final class VestigeExecutor {
             };
         }
         FutureTask<Thread> futureTask;
-        synchronized (CREATE_THREADS) {
+        synchronized (workerCreationTasks) {
             futureTask = new FutureTask<Thread>(new CreateThread(name, runnable));
-            CREATE_THREADS.addLast(futureTask);
-            CREATE_THREADS.notifyAll();
+            workerCreationTasks.addLast(futureTask);
+            workerCreationTasks.notifyAll();
         }
         Thread thread;
         try {

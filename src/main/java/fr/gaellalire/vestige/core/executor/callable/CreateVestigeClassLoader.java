@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core.callable;
+package fr.gaellalire.vestige.core.executor.callable;
 
 import java.net.URL;
 import java.util.List;
