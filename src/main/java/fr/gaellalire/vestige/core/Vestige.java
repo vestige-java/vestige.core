@@ -86,8 +86,8 @@ public final class Vestige {
         URL[] urls = new URL[urlList.size()];
         urlList.toArray(urls);
 
-        String[] dargs = new String[args.length - argIndex];
-        System.arraycopy(args, argIndex, dargs, 0, dargs.length);
+        String[] dargs = new String[args.length - argIndex - 1];
+        System.arraycopy(args, argIndex + 1, dargs, 0, dargs.length);
 
         StringParser stringParser = new NoStateStringParser(0);
         VestigeClassLoader<Void> vestigeClassLoader = new VestigeClassLoader<Void>(ClassLoader.getSystemClassLoader(), Collections.singletonList(Collections
