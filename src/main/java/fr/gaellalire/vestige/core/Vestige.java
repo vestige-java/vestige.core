@@ -35,7 +35,7 @@ import fr.gaellalire.vestige.core.parser.StringParser;
  */
 public final class Vestige {
 
-    private static void addClasspath(final File directory, final List<URL> urlList, final String classpath) throws MalformedURLException {
+    public static void addClasspath(final File directory, final List<URL> urlList, final String classpath) throws MalformedURLException {
         int pindex = 0;
         int index = classpath.indexOf(File.pathSeparatorChar);
         while (index != -1) {
@@ -96,26 +96,30 @@ public final class Vestige {
     }
 
     public static void runMain(final ClassLoader classLoader, final String mainclass, final VestigeExecutor vestigeExecutor, final String[] dargs) throws Exception {
+        Thread currentThread = Thread.currentThread();
+        ClassLoader contextClassLoader = currentThread.getContextClassLoader();
         Class<?> loadClass = classLoader.loadClass(mainclass);
         try {
             Method method = loadClass.getMethod("vestigeCoreMain", VestigeExecutor.class, String[].class);
-            Thread.currentThread().setContextClassLoader(classLoader);
+            VestigeExecutor vestigeExecutorLocal;
+            if (vestigeExecutor == null) {
+                vestigeExecutorLocal = new VestigeExecutor();
+            } else {
+                vestigeExecutorLocal = vestigeExecutor;
+            }
+            currentThread.setContextClassLoader(classLoader);
             try {
-                if (vestigeExecutor == null) {
-                    method.invoke(null, new Object[] {new VestigeExecutor(), dargs});
-                } else {
-                    method.invoke(null, new Object[] {vestigeExecutor, dargs});
-                }
+                method.invoke(null, new Object[] {vestigeExecutorLocal, dargs});
             } finally {
-                Thread.currentThread().setContextClassLoader(null);
+                currentThread.setContextClassLoader(contextClassLoader);
             }
         } catch (NoSuchMethodException e) {
             Method method = loadClass.getMethod("main", String[].class);
-            Thread.currentThread().setContextClassLoader(classLoader);
+            currentThread.setContextClassLoader(classLoader);
             try {
                 method.invoke(null, new Object[] {dargs});
             } finally {
-                Thread.currentThread().setContextClassLoader(null);
+                currentThread.setContextClassLoader(contextClassLoader);
             }
         }
     }

@@ -83,7 +83,7 @@ public final class VestigeExecutor {
         }
     }
 
-    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final List<List<VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL... urls) throws InterruptedException {
+    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL... urls) throws InterruptedException {
         Future<VestigeClassLoader<E>> submit = submit(new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urls));
         try {
             return submit.get();

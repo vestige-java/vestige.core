@@ -32,13 +32,13 @@ public class CreateVestigeClassLoader<E> implements Callable<VestigeClassLoader<
 
     private URL[] urls;
 
-    private List<List<VestigeClassLoader<?>>> vestigeClassloadersList;
+    private List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList;
 
     private StringParser classStringParser;
 
     private StringParser resourceStringParser;
 
-    public CreateVestigeClassLoader(final ClassLoader parent, final List<List<VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL[] urls) {
+    public CreateVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL[] urls) {
         this.parent = parent;
         this.urls = urls;
         this.vestigeClassloadersList = vestigeClassloadersList;
