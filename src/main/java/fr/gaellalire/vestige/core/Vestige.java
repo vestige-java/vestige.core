@@ -123,5 +123,4 @@ public final class Vestige {
             }
         }
     }
-
 }

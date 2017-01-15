@@ -19,6 +19,7 @@ package fr.gaellalire.vestige.core.executor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.net.URLStreamHandlerFactory;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -83,8 +84,8 @@ public final class VestigeExecutor {
         }
     }
 
-    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL... urls) throws InterruptedException {
-        Future<VestigeClassLoader<E>> submit = submit(new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urls));
+    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URLStreamHandlerFactory urlStreamHandlerFactory, final URL... urls) throws InterruptedException {
+        Future<VestigeClassLoader<E>> submit = submit(new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urlStreamHandlerFactory, urls));
         try {
             return submit.get();
         } catch (ExecutionException e) {

@@ -19,6 +19,7 @@ package fr.gaellalire.vestige.core;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.net.URLStreamHandlerFactory;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
@@ -40,9 +41,17 @@ public final class VestigeClassLoader<E> extends URLClassLoader {
 
     private E data;
 
-    public VestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList,
-            final StringParser classStringParser, final StringParser resourceStringParser, final URL... urls) {
+    public VestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser,
+            final StringParser resourceStringParser, final URL... urls) {
         super(urls, parent);
+        this.vestigeClassloadersList = vestigeClassloadersList;
+        this.classStringParser = classStringParser;
+        this.resourceStringParser = resourceStringParser;
+    }
+
+    public VestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser,
+            final StringParser resourceStringParser, final URLStreamHandlerFactory urlStreamHandlerFactory, final URL... urls) {
+        super(urls, parent, urlStreamHandlerFactory);
         this.vestigeClassloadersList = vestigeClassloadersList;
         this.classStringParser = classStringParser;
         this.resourceStringParser = resourceStringParser;

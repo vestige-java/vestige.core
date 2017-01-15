@@ -17,6 +17,7 @@
 package fr.gaellalire.vestige.core.executor.callable;
 
 import java.net.URL;
+import java.net.URLStreamHandlerFactory;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -38,16 +39,24 @@ public class CreateVestigeClassLoader<E> implements Callable<VestigeClassLoader<
 
     private StringParser resourceStringParser;
 
-    public CreateVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URL[] urls) {
+    private URLStreamHandlerFactory urlStreamHandlerFactory;
+
+    public CreateVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList,
+            final StringParser classStringParser, final StringParser resourceStringParser, final URLStreamHandlerFactory urlStreamHandlerFactory, final URL[] urls) {
         this.parent = parent;
         this.urls = urls;
         this.vestigeClassloadersList = vestigeClassloadersList;
         this.classStringParser = classStringParser;
         this.resourceStringParser = resourceStringParser;
+        this.urlStreamHandlerFactory = urlStreamHandlerFactory;
     }
 
     public VestigeClassLoader<E> call() {
-        return new VestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urls);
+        if (urlStreamHandlerFactory == null) {
+            return new VestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urls);
+        } else {
+            return new VestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urlStreamHandlerFactory, urls);
+        }
     }
 
 }
