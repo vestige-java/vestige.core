@@ -17,36 +17,45 @@
 package fr.gaellalire.vestige.core;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLStreamHandler;
+import java.net.URLStreamHandlerFactory;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import fr.gaellalire.vestige.core.executor.VestigeExecutor;
+import fr.gaellalire.vestige.core.parser.ClassStringParser;
 import fr.gaellalire.vestige.core.parser.NoStateStringParser;
+import fr.gaellalire.vestige.core.parser.PatternStringParser;
 import fr.gaellalire.vestige.core.parser.StringParser;
+import fr.gaellalire.vestige.core.resource.JarFileResourceLocator;
+import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
+import fr.gaellalire.vestige.core.url.DelegateURLStreamHandlerFactory;
 
 /**
  * @author Gael Lalire
  */
 public final class Vestige {
 
-    public static void addClasspath(final File directory, final List<URL> urlList, final String classpath) throws MalformedURLException {
+    public static void addClasspath(final File directory, final List<File> urlList, final String classpath) throws MalformedURLException {
         int pindex = 0;
         int index = classpath.indexOf(File.pathSeparatorChar);
         while (index != -1) {
             if (pindex != index) {
-                urlList.add(new File(directory, classpath.substring(pindex, index)).toURI().toURL());
+                urlList.add(new File(directory, classpath.substring(pindex, index)));
             }
             pindex = index + 1;
             index = classpath.indexOf(File.pathSeparatorChar, pindex);
         }
         if (pindex != classpath.length()) {
-            urlList.add(new File(directory, classpath.substring(pindex)).toURI().toURL());
+            urlList.add(new File(directory, classpath.substring(pindex)));
         }
     }
 
@@ -54,19 +63,35 @@ public final class Vestige {
         int argIndex = 0;
         File directory = null;
         File classpathFile = null;
-        if ("cp".equals(args[argIndex])) {
-        } else if ("rcp".equals(args[argIndex])) {
+
+        Pattern before = null;
+        String name = null;
+
+        String option = args[argIndex];
+        while (option.startsWith("--")) {
+            if ("--before".equals(option)) {
+                before = Pattern.compile(args[++argIndex]);
+            } else if ("--name".equals(option)) {
+                name = args[++argIndex];
+            } else {
+                throw new IllegalArgumentException("Unknown option " + option);
+            }
+            option = args[++argIndex];
+        }
+
+        if ("cp".equals(option)) {
+        } else if ("rcp".equals(option)) {
             directory = new File(args[++argIndex]);
-        } else if ("fcp".equals(args[argIndex])) {
+        } else if ("fcp".equals(option)) {
             classpathFile = new File(args[++argIndex]);
-        } else if ("frcp".equals(args[argIndex])) {
+        } else if ("frcp".equals(option)) {
             directory = new File(args[++argIndex]);
             classpathFile = new File(args[++argIndex]);
         } else {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Unknown option " + option);
         }
 
-        List<URL> urlList = new ArrayList<URL>();
+        List<File> urlList = new ArrayList<File>();
         if (classpathFile == null) {
             String classpath = args[++argIndex];
             addClasspath(directory, urlList, classpath);
@@ -82,34 +107,69 @@ public final class Vestige {
                 bufferedReader.close();
             }
         }
-        String mainclass = args[++argIndex];
-        URL[] urls = new URL[urlList.size()];
-        urlList.toArray(urls);
+        String mainClass = args[++argIndex];
+        VestigeResourceLocator[] urls = new VestigeResourceLocator[urlList.size()];
+        int i = 0;
+        for (File file : urlList) {
+            urls[i] = new JarFileResourceLocator(file);
+            i++;
+        }
 
         String[] dargs = new String[args.length - argIndex - 1];
         System.arraycopy(args, argIndex + 1, dargs, 0, dargs.length);
 
-        StringParser stringParser = new NoStateStringParser(0);
-        VestigeClassLoader<Void> vestigeClassLoader = new VestigeClassLoader<Void>(ClassLoader.getSystemClassLoader(), Collections.singletonList(Collections
-                .<VestigeClassLoader<Void>> singletonList(null)), stringParser, stringParser, urls);
-        runMain(vestigeClassLoader, mainclass, null, dargs);
+        ModuleEncapsulationEnforcer moduleEncapsulationEnforcer = null;
+        final VestigeClassLoader<String> vestigeClassLoader;
+        if (before != null) {
+            StringParser resourceStringParser = new PatternStringParser(before, 1, 0);
+            StringParser classStringParser = new ClassStringParser(resourceStringParser);
+            VestigeClassLoaderConfiguration[][] vestigeClassLoaderConfigurationsArray = new VestigeClassLoaderConfiguration[2][];
+            vestigeClassLoaderConfigurationsArray[0] = new VestigeClassLoaderConfiguration[] {VestigeClassLoaderConfiguration.THIS_PARENT_SEARCHED};
+            vestigeClassLoaderConfigurationsArray[1] = new VestigeClassLoaderConfiguration[] {VestigeClassLoaderConfiguration.THIS_PARENT_UNSEARCHED, null};
+
+            vestigeClassLoader = new VestigeClassLoader<String>(ClassLoader.getSystemClassLoader(), vestigeClassLoaderConfigurationsArray, classStringParser, resourceStringParser,
+                    moduleEncapsulationEnforcer, urls);
+        } else {
+            VestigeClassLoaderConfiguration[][] vestigeClassLoaderConfigurationsArray = new VestigeClassLoaderConfiguration[1][];
+            vestigeClassLoaderConfigurationsArray[0] = new VestigeClassLoaderConfiguration[] {VestigeClassLoaderConfiguration.THIS_PARENT_SEARCHED};
+            StringParser stringParser = new NoStateStringParser(0);
+            vestigeClassLoader = new VestigeClassLoader<String>(ClassLoader.getSystemClassLoader(), vestigeClassLoaderConfigurationsArray, stringParser, stringParser,
+                    moduleEncapsulationEnforcer, urls);
+        }
+        DelegateURLStreamHandlerFactory streamHandlerFactory = new DelegateURLStreamHandlerFactory();
+        URL.setURLStreamHandlerFactory(streamHandlerFactory);
+        final VestigeCoreContext vestigeCoreContext = new VestigeCoreContext(streamHandlerFactory, new VestigeExecutor());
+        vestigeClassLoader.setDataProtector(null, vestigeCoreContext);
+        vestigeClassLoader.setData(vestigeCoreContext, name);
+        vestigeCoreContext.setCloseable(new Closeable() {
+
+            @Override
+            public void close() throws IOException {
+                vestigeClassLoader.close(vestigeCoreContext);
+            }
+        });
+        streamHandlerFactory.setDelegate(new URLStreamHandlerFactory() {
+
+            @Override
+            public URLStreamHandler createURLStreamHandler(final String protocol) {
+                if (VestigeCoreURLStreamHandler.PROTOCOL.equals(protocol)) {
+                    return VestigeClassLoader.URL_STREAM_HANDLER;
+                }
+                return null;
+            }
+        });
+        runMain(vestigeClassLoader, mainClass, vestigeCoreContext, dargs);
     }
 
-    public static void runMain(final ClassLoader classLoader, final String mainclass, final VestigeExecutor vestigeExecutor, final String[] dargs) throws Exception {
+    public static void runMain(final ClassLoader classLoader, final String mainclass, final VestigeCoreContext vestigeCoreContext, final String[] dargs) throws Exception {
         Thread currentThread = Thread.currentThread();
         ClassLoader contextClassLoader = currentThread.getContextClassLoader();
         Class<?> loadClass = classLoader.loadClass(mainclass);
         try {
-            Method method = loadClass.getMethod("vestigeCoreMain", VestigeExecutor.class, String[].class);
-            VestigeExecutor vestigeExecutorLocal;
-            if (vestigeExecutor == null) {
-                vestigeExecutorLocal = new VestigeExecutor();
-            } else {
-                vestigeExecutorLocal = vestigeExecutor;
-            }
+            Method method = loadClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
             currentThread.setContextClassLoader(classLoader);
             try {
-                method.invoke(null, new Object[] {vestigeExecutorLocal, dargs});
+                method.invoke(null, new Object[] {vestigeCoreContext, dargs});
             } finally {
                 currentThread.setContextClassLoader(contextClassLoader);
             }

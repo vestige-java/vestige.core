@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 The Apache Software Foundation.
+ * Copyright 2017 The Apache Software Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,29 @@
 
 package fr.gaellalire.vestige.core.parser;
 
+import java.util.List;
+
 /**
  * @author Gael Lalire
  */
-public class ClassesStringParser implements StringParser {
+public class ListIndexStringParser implements StringParser {
 
-    private StringParser resourcesStringParser;
+    private List<String> list;
 
-    public ClassesStringParser(final StringParser resourcesStringParser) {
-        this.resourcesStringParser = resourcesStringParser;
+    private int unmatchValue;
+
+    public ListIndexStringParser(final List<String> list, final int unmatchValue) {
+        this.list = list;
+        this.unmatchValue = unmatchValue;
     }
 
+    @Override
     public int match(final CharSequence sequence) {
-        String path = sequence.toString().replace('.', '/').concat(".class");
-        return resourcesStringParser.match(path);
+        int indexOf = list.indexOf(sequence.toString());
+        if (indexOf == -1) {
+            return unmatchValue;
+        }
+        return indexOf;
     }
 
 }

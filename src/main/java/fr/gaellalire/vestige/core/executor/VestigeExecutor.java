@@ -18,21 +18,21 @@ package fr.gaellalire.vestige.core.executor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLStreamHandlerFactory;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
+import fr.gaellalire.vestige.core.ModuleEncapsulationEnforcer;
 import fr.gaellalire.vestige.core.VestigeClassLoader;
+import fr.gaellalire.vestige.core.VestigeClassLoaderConfiguration;
 import fr.gaellalire.vestige.core.executor.callable.ClassForName;
 import fr.gaellalire.vestige.core.executor.callable.CreateThread;
 import fr.gaellalire.vestige.core.executor.callable.CreateVestigeClassLoader;
 import fr.gaellalire.vestige.core.executor.callable.InvokeMethod;
 import fr.gaellalire.vestige.core.parser.StringParser;
+import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
 
 /**
  * @author Gael Lalire
@@ -84,8 +84,11 @@ public final class VestigeExecutor {
         }
     }
 
-    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList, final StringParser classStringParser, final StringParser resourceStringParser, final URLStreamHandlerFactory urlStreamHandlerFactory, final URL... urls) throws InterruptedException {
-        Future<VestigeClassLoader<E>> submit = submit(new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urlStreamHandlerFactory, urls));
+    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final VestigeClassLoaderConfiguration[][] vestigeClassloadersList,
+            final StringParser classStringParser, final StringParser resourceStringParser, final ModuleEncapsulationEnforcer moduleEncapsulationEnforcer,
+            final VestigeResourceLocator... urls) throws InterruptedException {
+        Future<VestigeClassLoader<E>> submit = submit(
+                new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, moduleEncapsulationEnforcer, urls));
         try {
             return submit.get();
         } catch (ExecutionException e) {
@@ -103,8 +106,7 @@ public final class VestigeExecutor {
      * Some class keep stack trace.
      * @throws InterruptedException
      */
-    public Class<?> classForName(final ClassLoader loader, final String className) throws ClassNotFoundException,
-            InterruptedException {
+    public Class<?> classForName(final ClassLoader loader, final String className) throws ClassNotFoundException, InterruptedException {
         Future<Class<?>> submit = submit(new ClassForName(loader, className));
         try {
             return submit.get();

@@ -16,13 +16,13 @@
 
 package fr.gaellalire.vestige.core.executor.callable;
 
-import java.net.URL;
-import java.net.URLStreamHandlerFactory;
-import java.util.List;
 import java.util.concurrent.Callable;
 
+import fr.gaellalire.vestige.core.ModuleEncapsulationEnforcer;
 import fr.gaellalire.vestige.core.VestigeClassLoader;
+import fr.gaellalire.vestige.core.VestigeClassLoaderConfiguration;
 import fr.gaellalire.vestige.core.parser.StringParser;
+import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
 
 /**
  * @author Gael Lalire
@@ -31,32 +31,28 @@ public class CreateVestigeClassLoader<E> implements Callable<VestigeClassLoader<
 
     private ClassLoader parent;
 
-    private URL[] urls;
+    private VestigeResourceLocator[] urls;
 
-    private List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList;
+    private VestigeClassLoaderConfiguration[][] vestigeClassLoaderConfigurationsList;
 
     private StringParser classStringParser;
 
     private StringParser resourceStringParser;
 
-    private URLStreamHandlerFactory urlStreamHandlerFactory;
+    private ModuleEncapsulationEnforcer moduleResourceStringParser;
 
-    public CreateVestigeClassLoader(final ClassLoader parent, final List<? extends List<? extends VestigeClassLoader<?>>> vestigeClassloadersList,
-            final StringParser classStringParser, final StringParser resourceStringParser, final URLStreamHandlerFactory urlStreamHandlerFactory, final URL[] urls) {
+    public CreateVestigeClassLoader(final ClassLoader parent, final VestigeClassLoaderConfiguration[][] vestigeClassLoaderConfigurationsList, final StringParser classStringParser,
+            final StringParser resourceStringParser, final ModuleEncapsulationEnforcer moduleEncapsulationEnforcer, final VestigeResourceLocator[] urls) {
         this.parent = parent;
         this.urls = urls;
-        this.vestigeClassloadersList = vestigeClassloadersList;
+        this.vestigeClassLoaderConfigurationsList = vestigeClassLoaderConfigurationsList;
         this.classStringParser = classStringParser;
         this.resourceStringParser = resourceStringParser;
-        this.urlStreamHandlerFactory = urlStreamHandlerFactory;
+        this.moduleResourceStringParser = moduleEncapsulationEnforcer;
     }
 
     public VestigeClassLoader<E> call() {
-        if (urlStreamHandlerFactory == null) {
-            return new VestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urls);
-        } else {
-            return new VestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, urlStreamHandlerFactory, urls);
-        }
+        return new VestigeClassLoader<E>(parent, vestigeClassLoaderConfigurationsList, classStringParser, resourceStringParser, moduleResourceStringParser, urls);
     }
 
 }
