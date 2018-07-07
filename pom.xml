@@ -151,8 +151,8 @@
     </snapshotRepository>
   </distributionManagement>
   <scm>
-    <connection>scm:git:git@gaellalire.fr:gaellalire/vestige.core.git</connection>
-    <developerConnection>scm:git:git@gaellalire.fr:gaellalire/vestige.core.git</developerConnection>
+    <connection>scm:git:git@gaellalire.fr:vestige/vestige.core.git</connection>
+    <developerConnection>scm:git:git@gaellalire.fr:vestige/vestige.core.git</developerConnection>
     <tag>HEAD</tag>
   </scm>
   <prerequisites>
