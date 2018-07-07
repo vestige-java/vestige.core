@@ -19,8 +19,9 @@ package fr.gaellalire.vestige.core;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -79,6 +80,8 @@ public final class Vestige {
             option = args[++argIndex];
         }
 
+        String encoding = null;
+
         if ("cp".equals(option)) {
         } else if ("rcp".equals(option)) {
             directory = new File(args[++argIndex]);
@@ -87,6 +90,13 @@ public final class Vestige {
         } else if ("frcp".equals(option)) {
             directory = new File(args[++argIndex]);
             classpathFile = new File(args[++argIndex]);
+        } else if ("fcpe".equals(option)) {
+            classpathFile = new File(args[++argIndex]);
+            encoding = args[++argIndex];
+        } else if ("frcpe".equals(option)) {
+            directory = new File(args[++argIndex]);
+            classpathFile = new File(args[++argIndex]);
+            encoding = args[++argIndex];
         } else {
             throw new IllegalArgumentException("Unknown option " + option);
         }
@@ -96,7 +106,13 @@ public final class Vestige {
             String classpath = args[++argIndex];
             addClasspath(directory, urlList, classpath);
         } else {
-            BufferedReader bufferedReader = new BufferedReader(new FileReader(classpathFile));
+            FileInputStream fileInputStream = new FileInputStream(classpathFile);
+            BufferedReader bufferedReader;
+            if (encoding == null) {
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
+            } else {
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+            }
             try {
                 String line = bufferedReader.readLine();
                 while (line != null) {

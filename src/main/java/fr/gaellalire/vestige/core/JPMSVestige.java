@@ -19,8 +19,9 @@ package fr.gaellalire.vestige.core;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -131,6 +132,8 @@ public final class JPMSVestige {
             option = args[++argIndex];
         }
 
+        String encoding = null;
+
         if ("mp".equals(option)) {
         } else if ("rmp".equals(option)) {
             directory = new File(args[++argIndex]);
@@ -139,6 +142,13 @@ public final class JPMSVestige {
         } else if ("frmp".equals(option)) {
             directory = new File(args[++argIndex]);
             modulePathFile = new File(args[++argIndex]);
+        } else if ("fmpe".equals(option)) {
+            modulePathFile = new File(args[++argIndex]);
+            encoding = args[++argIndex];
+        } else if ("frmpe".equals(option)) {
+            directory = new File(args[++argIndex]);
+            modulePathFile = new File(args[++argIndex]);
+            encoding = args[++argIndex];
         } else {
             throw new IllegalArgumentException("Unknown option " + option);
         }
@@ -152,7 +162,13 @@ public final class JPMSVestige {
                 addModulepath(directory, beforePathList, before);
             }
         } else {
-            BufferedReader bufferedReader = new BufferedReader(new FileReader(modulePathFile));
+            FileInputStream fileInputStream = new FileInputStream(modulePathFile);
+            BufferedReader bufferedReader;
+            if (encoding == null) {
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
+            } else {
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+            }
             try {
                 String line = bufferedReader.readLine();
                 while (line != null) {
@@ -163,7 +179,12 @@ public final class JPMSVestige {
                 bufferedReader.close();
             }
             if (before != null) {
-                bufferedReader = new BufferedReader(new FileReader(new File(before)));
+                fileInputStream = new FileInputStream(before);
+                if (encoding == null) {
+                    bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
+                } else {
+                    bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+                }
                 try {
                     String line = bufferedReader.readLine();
                     while (line != null) {
