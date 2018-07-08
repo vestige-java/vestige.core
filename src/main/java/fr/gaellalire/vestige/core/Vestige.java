@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -67,6 +68,7 @@ public final class Vestige {
 
         Pattern before = null;
         String name = null;
+        String consoleEncoding = null;
 
         String option = args[argIndex];
         while (option.startsWith("--")) {
@@ -74,13 +76,15 @@ public final class Vestige {
                 before = Pattern.compile(args[++argIndex]);
             } else if ("--name".equals(option)) {
                 name = args[++argIndex];
+            } else if ("--console-encoding".equals(option)) {
+                consoleEncoding = args[++argIndex];
             } else {
                 throw new IllegalArgumentException("Unknown option " + option);
             }
             option = args[++argIndex];
         }
 
-        String encoding = null;
+        String fileEncoding = null;
 
         if ("cp".equals(option)) {
         } else if ("rcp".equals(option)) {
@@ -90,15 +94,20 @@ public final class Vestige {
         } else if ("frcp".equals(option)) {
             directory = new File(args[++argIndex]);
             classpathFile = new File(args[++argIndex]);
-        } else if ("fcpe".equals(option)) {
+        } else if ("fecp".equals(option)) {
             classpathFile = new File(args[++argIndex]);
-            encoding = args[++argIndex];
-        } else if ("frcpe".equals(option)) {
+            fileEncoding = args[++argIndex];
+        } else if ("frecp".equals(option)) {
             directory = new File(args[++argIndex]);
             classpathFile = new File(args[++argIndex]);
-            encoding = args[++argIndex];
+            fileEncoding = args[++argIndex];
         } else {
             throw new IllegalArgumentException("Unknown option " + option);
+        }
+
+        if (consoleEncoding != null) {
+            System.setOut(new PrintStream(System.out, true, consoleEncoding));
+            System.setErr(new PrintStream(System.err, true, consoleEncoding));
         }
 
         List<File> urlList = new ArrayList<File>();
@@ -108,10 +117,10 @@ public final class Vestige {
         } else {
             FileInputStream fileInputStream = new FileInputStream(classpathFile);
             BufferedReader bufferedReader;
-            if (encoding == null) {
+            if (fileEncoding == null) {
                 bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
             } else {
-                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, fileEncoding));
             }
             try {
                 String line = bufferedReader.readLine();

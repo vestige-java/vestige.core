@@ -136,7 +136,6 @@ public final class VestigeClassLoader<E> extends SecureClassLoader implements Ve
         }
     }
 
-    @Override
     protected Object getClassLoadingLock(final String className) {
         if (GET_CLASS_LOADING_LOCK_METHOD_EXISTS) {
             return super.getClassLoadingLock(className);

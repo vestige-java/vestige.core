@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -110,6 +111,7 @@ public final class JPMSVestige {
         boolean jdk = false;
         boolean manyLoaders = false;
         String name = null;
+        String consoleEncoding = null;
 
         String option = args[argIndex];
         while (option.startsWith("--")) {
@@ -126,13 +128,15 @@ public final class JPMSVestige {
                 manyLoaders = true;
             } else if ("--jdk".equals(option)) {
                 jdk = true;
+            } else if ("--console-encoding".equals(option)) {
+                consoleEncoding = args[++argIndex];
             } else {
                 throw new IllegalArgumentException("Unknown option " + option);
             }
             option = args[++argIndex];
         }
 
-        String encoding = null;
+        String fileEncoding = null;
 
         if ("mp".equals(option)) {
         } else if ("rmp".equals(option)) {
@@ -142,15 +146,20 @@ public final class JPMSVestige {
         } else if ("frmp".equals(option)) {
             directory = new File(args[++argIndex]);
             modulePathFile = new File(args[++argIndex]);
-        } else if ("fmpe".equals(option)) {
+        } else if ("femp".equals(option)) {
             modulePathFile = new File(args[++argIndex]);
-            encoding = args[++argIndex];
-        } else if ("frmpe".equals(option)) {
+            fileEncoding = args[++argIndex];
+        } else if ("fremp".equals(option)) {
             directory = new File(args[++argIndex]);
             modulePathFile = new File(args[++argIndex]);
-            encoding = args[++argIndex];
+            fileEncoding = args[++argIndex];
         } else {
             throw new IllegalArgumentException("Unknown option " + option);
+        }
+
+        if (consoleEncoding != null) {
+            System.setOut(new PrintStream(System.out, true, consoleEncoding));
+            System.setErr(new PrintStream(System.err, true, consoleEncoding));
         }
 
         List<Path> beforePathList = new ArrayList<Path>();
@@ -164,10 +173,10 @@ public final class JPMSVestige {
         } else {
             FileInputStream fileInputStream = new FileInputStream(modulePathFile);
             BufferedReader bufferedReader;
-            if (encoding == null) {
+            if (fileEncoding == null) {
                 bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
             } else {
-                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+                bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, fileEncoding));
             }
             try {
                 String line = bufferedReader.readLine();
@@ -180,10 +189,10 @@ public final class JPMSVestige {
             }
             if (before != null) {
                 fileInputStream = new FileInputStream(before);
-                if (encoding == null) {
+                if (fileEncoding == null) {
                     bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
                 } else {
-                    bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, encoding));
+                    bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream, fileEncoding));
                 }
                 try {
                     String line = bufferedReader.readLine();
