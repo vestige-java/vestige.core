@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.Attributes;
@@ -96,6 +97,16 @@ public class JarFileResourceLocator implements VestigeResourceLocator, PackageMe
 
     public JarFileResourceLocator(final File file) {
         this.file = file;
+        try {
+            codeSourceURL = file.toURI().toURL();
+        } catch (MalformedURLException e) {
+            // not possible
+        }
+    }
+
+    public JarFileResourceLocator(final File file, final URL codeSourceURL) {
+        this.file = file;
+        this.codeSourceURL = codeSourceURL;
     }
 
     private JarFile openIfNot() throws IOException {
@@ -126,7 +137,6 @@ public class JarFileResourceLocator implements VestigeResourceLocator, PackageMe
             }
         }
         manifest = jarFile.getManifest();
-        codeSourceURL = file.toURI().toURL();
 
         Attributes attr = manifest.getMainAttributes();
         if (attr != null) {
