@@ -16,6 +16,7 @@
 
 package fr.gaellalire.vestige.core;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
@@ -31,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import fr.gaellalire.vestige.core.resource.VestigeResource;
+import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
 
 /**
  * @author Gael Lalire
@@ -118,14 +120,22 @@ public final class VestigeCoreURLStreamHandler extends URLStreamHandler {
             throw new IOException("Invalid vrt URL (" + file + ")");
         }
         int gpIndex = 1;
-        int urlIndex = Integer.parseInt(matcher.group(gpIndex++));
-        int parseInt = Integer.parseInt(matcher.group(gpIndex++));
-        VestigeClassLoader<?> classLoader = urlReferencedVestigeClassLoader.get(urlIndex).get();
+        final int classLoaderIndex = Integer.parseInt(matcher.group(gpIndex++));
+        final int locatorIndex = Integer.parseInt(matcher.group(gpIndex++));
+        final String entryName = matcher.group(gpIndex);
+        VestigeClassLoader<?> classLoader = urlReferencedVestigeClassLoader.get(classLoaderIndex).get();
         if (classLoader == null) {
             throw new IOException("ClassLoader of URL does not exists anymore (" + file + ")");
         }
 
-        final VestigeResource entry = classLoader.getVestigeResourceLocator(parseInt).findResource(matcher.group(gpIndex));
+        final VestigeResourceLocator vestigeResourceLocator = classLoader.getVestigeResourceLocator(locatorIndex);
+        final VestigeResource entry;
+
+        if (vestigeResourceLocator == null) {
+            entry = null;
+        } else {
+            entry = vestigeResourceLocator.findResource(entryName);
+        }
 
         return new URLConnection(url) {
             @Override
@@ -134,6 +144,12 @@ public final class VestigeCoreURLStreamHandler extends URLStreamHandler {
 
             @Override
             public InputStream getInputStream() throws IOException {
+                if (vestigeResourceLocator == null) {
+                    throw new FileNotFoundException("JAR not found at locator " + locatorIndex + " of classloader " + classLoaderIndex);
+                }
+                if (entry == null) {
+                    throw new FileNotFoundException("JAR entry " + entryName + " not found in locator " + locatorIndex + " of classloader " + classLoaderIndex);
+                }
                 return entry.getInputStream();
             }
 
@@ -143,6 +159,9 @@ public final class VestigeCoreURLStreamHandler extends URLStreamHandler {
             }
 
             public long getContentLengthLong() {
+                if (entry == null) {
+                    return -1;
+                }
                 return entry.getSize();
             }
         };
