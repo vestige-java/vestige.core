@@ -22,7 +22,9 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.URLDecoder;
 import java.net.URLStreamHandler;
+import java.nio.charset.Charset;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -110,40 +112,86 @@ public final class VestigeCoreURLStreamHandler extends URLStreamHandler {
         }
     }
 
-    private static final Pattern URL_FILE_PATTERN = Pattern.compile("/(\\d+)/(\\d+)!/(.*)");
+    private static final Pattern URL_PATH_PATTERN = Pattern.compile("/(\\d+)/(\\d+)!/(.*)");
+
+    @Override
+    protected void parseURL(final URL u, final String spec, final int start, final int limit) {
+        super.parseURL(u, spec, start, limit);
+        String authority = u.getAuthority();
+        if (authority != null && authority.length() != 0) {
+            new IllegalArgumentException("vrt does not support authority part (//[userinfo@]host[:port])");
+        }
+        if (u.getQuery() != null) {
+            new IllegalArgumentException("vrt does not support query part (?query)");
+        }
+        if (u.getRef() != null) {
+            new IllegalArgumentException("vrt does not support fragment part (#fragment)");
+        }
+        Matcher matcher = URL_PATH_PATTERN.matcher(u.getPath());
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("vrt path must starts with /[integer]/[integer]!/[entry-name]");
+        }
+        try {
+            URLDecoder.decode(matcher.group(3), Charset.defaultCharset().name());
+        } catch (Exception e) {
+            new IllegalArgumentException("vrt entry name in path is illegal", e);
+        }
+    }
 
     @Override
     protected URLConnection openConnection(final URL url) throws IOException {
-        String file = url.getFile();
-        Matcher matcher = URL_FILE_PATTERN.matcher(file);
+        final String path = url.getPath();
+        Matcher matcher = URL_PATH_PATTERN.matcher(path);
         if (!matcher.matches()) {
-            throw new IOException("Invalid vrt URL (" + file + ")");
+            throw new IOException("Invalid vrt URL (" + path + ")");
         }
         int gpIndex = 1;
         final int classLoaderIndex = Integer.parseInt(matcher.group(gpIndex++));
         final int locatorIndex = Integer.parseInt(matcher.group(gpIndex++));
-        final String entryName = matcher.group(gpIndex);
-        VestigeClassLoader<?> classLoader = urlReferencedVestigeClassLoader.get(classLoaderIndex).get();
-        if (classLoader == null) {
-            throw new IOException("ClassLoader of URL does not exists anymore (" + file + ")");
-        }
-
-        final VestigeResourceLocator vestigeResourceLocator = classLoader.getVestigeResourceLocator(locatorIndex);
-        final VestigeResource entry;
-
-        if (vestigeResourceLocator == null) {
-            entry = null;
-        } else {
-            entry = vestigeResourceLocator.findResource(entryName);
-        }
+        final String entryName = URLDecoder.decode(matcher.group(gpIndex), Charset.defaultCharset().name());
 
         return new URLConnection(url) {
+
+            private boolean connected;
+
+            private VestigeResourceLocator vestigeResourceLocator;
+
+            private VestigeResource entry;
+
             @Override
             public void connect() throws IOException {
+                WeakReference<VestigeClassLoader<?>> weakReference;
+                synchronized (urlReferencedVestigeClassLoader) {
+                    if (connected) {
+                        return;
+                    }
+                    weakReference = urlReferencedVestigeClassLoader.get(classLoaderIndex);
+                }
+                if (weakReference == null) {
+                    throw new IOException("ClassLoader of URL does not exists (" + path + ")");
+                }
+                VestigeClassLoader<?> classLoader = weakReference.get();
+                if (classLoader == null) {
+                    throw new IOException("ClassLoader of URL does not exists anymore (" + path + ")");
+                }
+
+                vestigeResourceLocator = classLoader.getVestigeResourceLocator(locatorIndex);
+
+                if (vestigeResourceLocator == null) {
+                    entry = null;
+                } else {
+                    entry = vestigeResourceLocator.findResource(entryName);
+                }
+                synchronized (urlReferencedVestigeClassLoader) {
+                    connected = true;
+                }
             }
 
             @Override
             public InputStream getInputStream() throws IOException {
+                if (!connected) {
+                    connect();
+                }
                 if (vestigeResourceLocator == null) {
                     throw new FileNotFoundException("JAR not found at locator " + locatorIndex + " of classloader " + classLoaderIndex);
                 }
@@ -159,6 +207,13 @@ public final class VestigeCoreURLStreamHandler extends URLStreamHandler {
             }
 
             public long getContentLengthLong() {
+                if (!connected) {
+                    try {
+                        connect();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
                 if (entry == null) {
                     return -1;
                 }
