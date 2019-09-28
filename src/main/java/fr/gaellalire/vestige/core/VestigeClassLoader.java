@@ -53,18 +53,23 @@ public final class VestigeClassLoader<E> extends SecureClassLoader implements Ve
         try {
             classLoaderClass.getDeclaredMethod("getClassLoadingLock", String.class);
             getClassLoadingLockExists = true;
-        } catch (NoSuchMethodException e) {
+        } catch (Exception e) {
             // ignore
-        } catch (SecurityException e) {
-            // ignore
+        }
+        if (getClassLoadingLockExists) {
+            Method registerAsParallelCapableMethod = null;
+            try {
+                registerAsParallelCapableMethod = classLoaderClass.getDeclaredMethod("registerAsParallelCapable");
+                registerAsParallelCapableMethod.invoke(null);
+            } catch (Exception e) {
+                // ignore
+            }
         }
         GET_CLASS_LOADING_LOCK_METHOD_EXISTS = getClassLoadingLockExists;
         Method getDefinedPackageMethod = null;
         try {
             getDefinedPackageMethod = classLoaderClass.getDeclaredMethod("getDefinedPackage", String.class);
-        } catch (NoSuchMethodException e) {
-            // ignore
-        } catch (SecurityException e) {
+        } catch (Exception e) {
             // ignore
         }
         GET_DEFINED_PACKAGE_METHOD = getDefinedPackageMethod;
