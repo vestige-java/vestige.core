@@ -62,13 +62,18 @@ public final class Vestige {
     }
 
     public static void main(final String[] args) throws Exception {
+        String consoleEncoding = System.getProperty("console.encoding");
+        if (consoleEncoding != null) {
+            System.setOut(new PrintStream(System.out, true, consoleEncoding));
+            System.setErr(new PrintStream(System.err, true, consoleEncoding));
+        }
+
         int argIndex = 0;
         File directory = null;
         File classpathFile = null;
 
         Pattern before = null;
         String name = null;
-        String consoleEncoding = null;
 
         String option = args[argIndex];
         while (option.startsWith("--")) {
@@ -76,38 +81,36 @@ public final class Vestige {
                 before = Pattern.compile(args[++argIndex]);
             } else if ("--name".equals(option)) {
                 name = args[++argIndex];
-            } else if ("--console-encoding".equals(option)) {
-                consoleEncoding = args[++argIndex];
+            } else if ("--env-to-prop".equals(option)) {
+                String envName = args[++argIndex];
+                String propName = args[++argIndex];
+                String value = System.getenv(envName);
+                if (value != null) {
+                    System.setProperty(propName, value);
+                }
             } else {
                 throw new IllegalArgumentException("Unknown option " + option);
             }
             option = args[++argIndex];
         }
 
-        String fileEncoding = null;
-
-        if ("cp".equals(option)) {
-        } else if ("rcp".equals(option)) {
-            directory = new File(args[++argIndex]);
-        } else if ("fcp".equals(option)) {
-            classpathFile = new File(args[++argIndex]);
-        } else if ("frcp".equals(option)) {
-            directory = new File(args[++argIndex]);
-            classpathFile = new File(args[++argIndex]);
-        } else if ("fecp".equals(option)) {
-            classpathFile = new File(args[++argIndex]);
-            fileEncoding = args[++argIndex];
-        } else if ("frecp".equals(option)) {
-            directory = new File(args[++argIndex]);
-            classpathFile = new File(args[++argIndex]);
-            fileEncoding = args[++argIndex];
-        } else {
-            throw new IllegalArgumentException("Unknown option " + option);
+        String fileEncoding = System.getenv("VESTIGE_CORE_FILE_ENCODING");
+        String vestigeCoreRelativeDirectory = System.getenv("VESTIGE_CORE_RELATIVE_DIRECTORY");
+        if (vestigeCoreRelativeDirectory != null) {
+            directory = new File(vestigeCoreRelativeDirectory);
+        }
+        String vestigeCoreClasspathFile = System.getenv("VESTIGE_CORE_CLASSPATH_FILE");
+        if (vestigeCoreClasspathFile != null) {
+            classpathFile = new File(vestigeCoreClasspathFile);
         }
 
-        if (consoleEncoding != null) {
-            System.setOut(new PrintStream(System.out, true, consoleEncoding));
-            System.setErr(new PrintStream(System.err, true, consoleEncoding));
+        if ("cp".equals(option)) {
+        } else if ("ecp".equals(option)) {
+            if (classpathFile == null) {
+                throw new IllegalArgumentException("Expect at least VESTIGE_CORE_CLASSPATH_FILE in env mode");
+            }
+        } else {
+            throw new IllegalArgumentException("Unknown option " + option);
         }
 
         List<File> urlList = new ArrayList<File>();

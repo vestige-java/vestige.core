@@ -100,9 +100,16 @@ public final class JPMSVestige {
     }
 
     public static void main(final String[] args) throws Exception {
+        String consoleEncoding = System.getProperty("console.encoding");
+        if (consoleEncoding != null) {
+            System.setOut(new PrintStream(System.out, true, consoleEncoding));
+            System.setErr(new PrintStream(System.err, true, consoleEncoding));
+        }
+
         int argIndex = 0;
 
         File directory = null;
+        File beforeModulePathFile = null;
         File modulePathFile = null;
         List<String> addModules = Collections.emptyList();
 
@@ -111,7 +118,6 @@ public final class JPMSVestige {
         boolean jdk = false;
         boolean manyLoaders = false;
         String name = null;
-        String consoleEncoding = null;
 
         String option = args[argIndex];
         while (option.startsWith("--")) {
@@ -128,38 +134,40 @@ public final class JPMSVestige {
                 manyLoaders = true;
             } else if ("--jdk".equals(option)) {
                 jdk = true;
-            } else if ("--console-encoding".equals(option)) {
-                consoleEncoding = args[++argIndex];
+            } else if ("--env-to-prop".equals(option)) {
+                String envName = args[++argIndex];
+                String propName = args[++argIndex];
+                String value = System.getenv(envName);
+                if (value != null) {
+                    System.setProperty(propName, value);
+                }
             } else {
                 throw new IllegalArgumentException("Unknown option " + option);
             }
             option = args[++argIndex];
         }
 
-        String fileEncoding = null;
-
-        if ("mp".equals(option)) {
-        } else if ("rmp".equals(option)) {
-            directory = new File(args[++argIndex]);
-        } else if ("fmp".equals(option)) {
-            modulePathFile = new File(args[++argIndex]);
-        } else if ("frmp".equals(option)) {
-            directory = new File(args[++argIndex]);
-            modulePathFile = new File(args[++argIndex]);
-        } else if ("femp".equals(option)) {
-            modulePathFile = new File(args[++argIndex]);
-            fileEncoding = args[++argIndex];
-        } else if ("fremp".equals(option)) {
-            directory = new File(args[++argIndex]);
-            modulePathFile = new File(args[++argIndex]);
-            fileEncoding = args[++argIndex];
-        } else {
-            throw new IllegalArgumentException("Unknown option " + option);
+        String fileEncoding = System.getenv("VESTIGE_CORE_FILE_ENCODING");
+        String vestigeCoreRelativeDirectory = System.getenv("VESTIGE_CORE_RELATIVE_DIRECTORY");
+        if (vestigeCoreRelativeDirectory != null) {
+            directory = new File(vestigeCoreRelativeDirectory);
+        }
+        String vestigeCoreModulepathFile = System.getenv("VESTIGE_CORE_MODULEPATH_FILE");
+        if (vestigeCoreModulepathFile != null) {
+            modulePathFile = new File(vestigeCoreModulepathFile);
+        }
+        String vestigeCoreBeforeModulepathFile = System.getenv("VESTIGE_CORE_BEFORE_MODULEPATH_FILE");
+        if (vestigeCoreBeforeModulepathFile != null) {
+            beforeModulePathFile = new File(vestigeCoreBeforeModulepathFile);
         }
 
-        if (consoleEncoding != null) {
-            System.setOut(new PrintStream(System.out, true, consoleEncoding));
-            System.setErr(new PrintStream(System.err, true, consoleEncoding));
+        if ("mp".equals(option)) {
+        } else if ("emp".equals(option)) {
+            if (modulePathFile == null) {
+                throw new IllegalArgumentException("Expect at least VESTIGE_CORE_MODULEPATH_FILE in env mode");
+            }
+        } else {
+            throw new IllegalArgumentException("Unknown option " + option);
         }
 
         List<Path> beforePathList = new ArrayList<Path>();
@@ -187,8 +195,8 @@ public final class JPMSVestige {
             } finally {
                 bufferedReader.close();
             }
-            if (before != null) {
-                fileInputStream = new FileInputStream(before);
+            if (beforeModulePathFile != null) {
+                fileInputStream = new FileInputStream(beforeModulePathFile);
                 if (fileEncoding == null) {
                     bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
                 } else {
