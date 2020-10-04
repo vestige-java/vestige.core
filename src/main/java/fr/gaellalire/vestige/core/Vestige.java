@@ -32,11 +32,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import fr.gaellalire.vestige.core.executor.VestigeExecutor;
 import fr.gaellalire.vestige.core.parser.ClassStringParser;
 import fr.gaellalire.vestige.core.parser.NoStateStringParser;
 import fr.gaellalire.vestige.core.parser.PatternStringParser;
 import fr.gaellalire.vestige.core.parser.StringParser;
+import fr.gaellalire.vestige.core.resource.DirectoryResourceLocator;
 import fr.gaellalire.vestige.core.resource.JarFileResourceLocator;
 import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
 import fr.gaellalire.vestige.core.url.DelegateURLStreamHandlerFactory;
@@ -139,13 +139,22 @@ public final class Vestige {
         VestigeResourceLocator[] urls = new VestigeResourceLocator[urlList.size()];
         int i = 0;
         for (File file : urlList) {
-            urls[i] = new JarFileResourceLocator(file);
+            if (file.isDirectory()) {
+                urls[i] = new DirectoryResourceLocator(file);
+            } else {
+                urls[i] = new JarFileResourceLocator(file);
+            }
             i++;
         }
 
         String[] dargs = new String[args.length - argIndex - 1];
         System.arraycopy(args, argIndex + 1, dargs, 0, dargs.length);
 
+        run(before, name, urls, mainClass, dargs);
+    }
+
+    public static VestigeClassLoader<String> run(final Pattern before, final String name, final VestigeResourceLocator[] urls, final String mainClass, final String[] dargs)
+            throws Exception {
         ModuleEncapsulationEnforcer moduleEncapsulationEnforcer = null;
         final VestigeClassLoader<String> vestigeClassLoader;
         if (before != null) {
@@ -164,9 +173,11 @@ public final class Vestige {
             vestigeClassLoader = new VestigeClassLoader<String>(ClassLoader.getSystemClassLoader(), vestigeClassLoaderConfigurationsArray, stringParser, stringParser,
                     moduleEncapsulationEnforcer, urls);
         }
-        DelegateURLStreamHandlerFactory streamHandlerFactory = new DelegateURLStreamHandlerFactory();
+
+        final VestigeCoreContext vestigeCoreContext = VestigeCoreContext.buildDefaultInstance();
+        DelegateURLStreamHandlerFactory streamHandlerFactory = vestigeCoreContext.getStreamHandlerFactory();
         URL.setURLStreamHandlerFactory(streamHandlerFactory);
-        final VestigeCoreContext vestigeCoreContext = new VestigeCoreContext(streamHandlerFactory, new VestigeExecutor());
+
         vestigeClassLoader.setDataProtector(null, vestigeCoreContext);
         vestigeClassLoader.setData(vestigeCoreContext, name);
         vestigeCoreContext.setCloseable(new Closeable() {
@@ -186,28 +197,38 @@ public final class Vestige {
                 return null;
             }
         });
-        runMain(vestigeClassLoader, mainClass, vestigeCoreContext, dargs);
+        runMain(vestigeClassLoader, vestigeClassLoader.loadClass(mainClass), vestigeCoreContext, dargs);
+        return vestigeClassLoader;
     }
 
-    public static void runMain(final ClassLoader classLoader, final String mainclass, final VestigeCoreContext vestigeCoreContext, final String[] dargs) throws Exception {
-        Thread currentThread = Thread.currentThread();
-        ClassLoader contextClassLoader = currentThread.getContextClassLoader();
-        Class<?> loadClass = classLoader.loadClass(mainclass);
-        try {
-            Method method = loadClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
-            currentThread.setContextClassLoader(classLoader);
+    public static void runMain(final ClassLoader classLoader, final Class<?> mainClass, final VestigeCoreContext vestigeCoreContext, final String[] dargs) throws Exception {
+        if (classLoader == null) {
             try {
+                Method method = mainClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
                 method.invoke(null, new Object[] {vestigeCoreContext, dargs});
-            } finally {
-                currentThread.setContextClassLoader(contextClassLoader);
-            }
-        } catch (NoSuchMethodException e) {
-            Method method = loadClass.getMethod("main", String[].class);
-            currentThread.setContextClassLoader(classLoader);
-            try {
+            } catch (NoSuchMethodException e) {
+                Method method = mainClass.getMethod("main", String[].class);
                 method.invoke(null, new Object[] {dargs});
-            } finally {
-                currentThread.setContextClassLoader(contextClassLoader);
+            }
+        } else {
+            Thread currentThread = Thread.currentThread();
+            ClassLoader contextClassLoader = currentThread.getContextClassLoader();
+            try {
+                Method method = mainClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
+                currentThread.setContextClassLoader(classLoader);
+                try {
+                    method.invoke(null, new Object[] {vestigeCoreContext, dargs});
+                } finally {
+                    currentThread.setContextClassLoader(contextClassLoader);
+                }
+            } catch (NoSuchMethodException e) {
+                Method method = mainClass.getMethod("main", String[].class);
+                currentThread.setContextClassLoader(classLoader);
+                try {
+                    method.invoke(null, new Object[] {dargs});
+                } finally {
+                    currentThread.setContextClassLoader(contextClassLoader);
+                }
             }
         }
     }

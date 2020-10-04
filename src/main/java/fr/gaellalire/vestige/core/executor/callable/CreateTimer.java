@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 The Apache Software Foundation.
+ * Copyright 2020 The Apache Software Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,25 @@
 
 package fr.gaellalire.vestige.core.executor.callable;
 
+import java.util.Timer;
 import java.util.concurrent.Callable;
 
 /**
  * @author Gael Lalire
  */
-public class CreateThread implements Callable<Thread> {
-
-    private ThreadGroup group;
-
-    private Runnable target;
+public class CreateTimer implements Callable<Timer> {
 
     private String name;
 
-    private long stackSize;
+    private boolean isDaemon;
 
-    public CreateThread(final ThreadGroup group, final Runnable target, final String name, final long stackSize) {
-        this.group = group;
-        this.target = target;
+    public CreateTimer(final String name, final boolean isDaemon) {
         this.name = name;
-        this.stackSize = stackSize;
+        this.isDaemon = isDaemon;
     }
 
-    public Thread call() {
-        return new Thread(group, target, name, stackSize);
+    public Timer call() {
+        return new Timer(name, isDaemon);
     }
 
 }

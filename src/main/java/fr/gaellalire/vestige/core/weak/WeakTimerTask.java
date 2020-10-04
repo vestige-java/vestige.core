@@ -14,32 +14,30 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core.executor.callable;
+package fr.gaellalire.vestige.core.weak;
 
-import java.util.concurrent.Callable;
+import java.lang.ref.WeakReference;
+import java.util.TimerTask;
 
 /**
  * @author Gael Lalire
  */
-public class CreateThread implements Callable<Thread> {
+public final class WeakTimerTask extends TimerTask {
 
-    private ThreadGroup group;
+    private WeakReference<Runnable> weakReference;
 
-    private Runnable target;
-
-    private String name;
-
-    private long stackSize;
-
-    public CreateThread(final ThreadGroup group, final Runnable target, final String name, final long stackSize) {
-        this.group = group;
-        this.target = target;
-        this.name = name;
-        this.stackSize = stackSize;
+    public WeakTimerTask(final Runnable r) {
+        weakReference = new WeakReference<Runnable>(r);
     }
 
-    public Thread call() {
-        return new Thread(group, target, name, stackSize);
+    @Override
+    public void run() {
+        Runnable runnable = weakReference.get();
+        if (runnable == null) {
+            cancel();
+        } else {
+            runnable.run();
+        }
     }
 
 }

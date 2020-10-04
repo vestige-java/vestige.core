@@ -46,11 +46,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import fr.gaellalire.vestige.core.executor.VestigeExecutor;
 import fr.gaellalire.vestige.core.parser.ListIndexStringParser;
 import fr.gaellalire.vestige.core.parser.NoStateStringParser;
 import fr.gaellalire.vestige.core.parser.ResourceEncapsulationEnforcer;
 import fr.gaellalire.vestige.core.parser.StringParser;
+import fr.gaellalire.vestige.core.resource.DirectoryResourceLocator;
 import fr.gaellalire.vestige.core.resource.JarFileResourceLocator;
 import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
 import fr.gaellalire.vestige.core.url.DelegateURLStreamHandlerFactory;
@@ -236,12 +236,28 @@ public final class JPMSVestige {
 
         VestigeResourceLocator[] urls = new VestigeResourceLocator[beforePaths.length + paths.length];
         for (int i = 0; i < beforePaths.length; i++) {
-            urls[i] = new JarFileResourceLocator(beforePaths[i].toFile());
+            File file = beforePaths[i].toFile();
+            if (file.isDirectory()) {
+                urls[i] = new DirectoryResourceLocator(file);
+            } else {
+                urls[i] = new JarFileResourceLocator(file);
+            }
         }
         for (int i = 0; i < paths.length; i++) {
-            urls[beforePaths.length + i] = new JarFileResourceLocator(paths[i].toFile());
+            File file = paths[i].toFile();
+            if (file.isDirectory()) {
+                urls[beforePaths.length + i] = new DirectoryResourceLocator(file);
+            } else {
+                urls[beforePaths.length + i] = new JarFileResourceLocator(file);
+            }
         }
 
+        run(bind, jdk, manyLoaders, name, urls, beforePaths, paths, roots, mainModule, mainClass, dargs);
+    }
+
+    public static VestigeClassLoader<String> run(final boolean bind, final boolean jdk, final boolean manyLoaders, final String name, final VestigeResourceLocator[] urls,
+            final Path[] beforePaths, final Path[] paths, final List<String> roots, final String mainModule, final String mainClass, final String[] dargs)
+            throws IOException, Exception {
         ModuleLayer boot = ModuleLayer.boot();
         Configuration cf;
         if (bind) {
@@ -251,25 +267,23 @@ public final class JPMSVestige {
         }
         Controller controller;
         ClassLoader classLoader = null;
-        DelegateURLStreamHandlerFactory streamHandlerFactory = new DelegateURLStreamHandlerFactory();
+        VestigeCoreContext vestigeCoreContext = VestigeCoreContext.buildDefaultInstance();
+        DelegateURLStreamHandlerFactory streamHandlerFactory = vestigeCoreContext.getStreamHandlerFactory();
         URL.setURLStreamHandlerFactory(streamHandlerFactory);
-        VestigeCoreContext vestigeCoreContext;
+        final VestigeClassLoader<String> vestigeClassLoader;
         if (jdk) {
             if (name != null) {
                 throw new IllegalArgumentException("--name has to be used without --jdk");
             }
-            vestigeCoreContext = new VestigeCoreContext(streamHandlerFactory, new VestigeExecutor());
             if (manyLoaders) {
                 controller = ModuleLayer.defineModulesWithManyLoaders(cf, Collections.singletonList(boot), ClassLoader.getSystemClassLoader());
             } else {
                 controller = ModuleLayer.defineModulesWithOneLoader(cf, Collections.singletonList(boot), ClassLoader.getSystemClassLoader());
             }
+            vestigeClassLoader = null;
         } else {
             if (manyLoaders) {
                 throw new IllegalArgumentException("--many-loaders has to be used with --jdk");
-            }
-            if (before != null) {
-                throw new IllegalArgumentException("--before has to be used with --jdk");
             }
             Map<String, String> moduleNameByPackageName = new HashMap<>();
             Set<String> encapsulatedPackageNames = new HashSet<>();
@@ -290,11 +304,10 @@ public final class JPMSVestige {
 
             VestigeClassLoaderConfiguration[][] vestigeClassLoaderConfigurationsArray = new VestigeClassLoaderConfiguration[][] {
                     new VestigeClassLoaderConfiguration[] {VestigeClassLoaderConfiguration.THIS_PARENT_SEARCHED}};
-            final VestigeClassLoader<String> vestigeClassLoader = new VestigeClassLoader<String>(ClassLoader.getSystemClassLoader(), vestigeClassLoaderConfigurationsArray,
-                    classStringParser, resourceStringParser, moduleEncapsulationEnforcer, urls);
+            vestigeClassLoader = new VestigeClassLoader<String>(ClassLoader.getSystemClassLoader(), vestigeClassLoaderConfigurationsArray, classStringParser, resourceStringParser,
+                    moduleEncapsulationEnforcer, urls);
             controller = ModuleLayer.defineModules(cf, Collections.singletonList(boot), moduleName -> vestigeClassLoader);
 
-            vestigeCoreContext = new VestigeCoreContext(streamHandlerFactory, new VestigeExecutor());
             vestigeClassLoader.setDataProtector(null, vestigeCoreContext);
             vestigeClassLoader.setData(vestigeCoreContext, name);
             vestigeCoreContext.setCloseable(new Closeable() {
@@ -325,31 +338,37 @@ public final class JPMSVestige {
             classLoader = module.getClassLoader();
         }
 
-        if (mainClass == null) {
+        String mainClassNotNull = mainClass;
+        if (mainClassNotNull == null) {
             Optional<String> optionalMainClass = module.getDescriptor().mainClass();
             if (!optionalMainClass.isPresent()) {
                 throw new IllegalArgumentException("No MainClass attribute in module " + mainModule + ", use <module>/<main-class>");
             }
-            mainClass = optionalMainClass.get();
+            mainClassNotNull = optionalMainClass.get();
         }
-        runMain(classLoader, mainClass, controller, vestigeCoreContext, dargs);
+        runMain(classLoader, classLoader.loadClass(mainClassNotNull), controller, vestigeCoreContext, dargs);
+
+        return vestigeClassLoader;
     }
 
-    public static void runMain(final ClassLoader classLoader, final String mainclass, final Controller controller, final VestigeCoreContext vestigeCoreContext,
+    public static void runMain(final ClassLoader classLoader, final Class<?> mainClass, final Controller controller, final VestigeCoreContext vestigeCoreContext,
             final String[] dargs) throws Exception {
-        Class<?> loadClass = classLoader.loadClass(mainclass);
         try {
-            Method method = loadClass.getMethod("vestigeCoreMain", Controller.class, VestigeCoreContext.class, String[].class);
-            Thread currentThread = Thread.currentThread();
-            ClassLoader contextClassLoader = currentThread.getContextClassLoader();
-            currentThread.setContextClassLoader(classLoader);
-            try {
+            Method method = mainClass.getMethod("vestigeCoreMain", Controller.class, VestigeCoreContext.class, String[].class);
+            if (classLoader == null) {
                 method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
-            } finally {
-                currentThread.setContextClassLoader(contextClassLoader);
+            } else {
+                Thread currentThread = Thread.currentThread();
+                ClassLoader contextClassLoader = currentThread.getContextClassLoader();
+                currentThread.setContextClassLoader(classLoader);
+                try {
+                    method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
+                } finally {
+                    currentThread.setContextClassLoader(contextClassLoader);
+                }
             }
         } catch (NoSuchMethodException e) {
-            Vestige.runMain(classLoader, mainclass, vestigeCoreContext, dargs);
+            Vestige.runMain(classLoader, mainClass, vestigeCoreContext, dargs);
         }
     }
 }

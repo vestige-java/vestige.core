@@ -20,6 +20,7 @@ import java.io.Closeable;
 
 import fr.gaellalire.vestige.core.executor.VestigeExecutor;
 import fr.gaellalire.vestige.core.url.DelegateURLStreamHandlerFactory;
+import fr.gaellalire.vestige.core.weak.VestigeReaper;
 
 /**
  * @author Gael Lalire
@@ -28,12 +29,29 @@ public final class VestigeCoreContext {
 
     private DelegateURLStreamHandlerFactory streamHandlerFactory;
 
+    private VestigeReaper vestigeReaper;
+
     private VestigeExecutor vestigeExecutor;
 
     private Closeable closeable;
 
-    public VestigeCoreContext(final DelegateURLStreamHandlerFactory streamHandlerFactory, final VestigeExecutor vestigeExecutor) {
+    public static VestigeCoreContext buildDefaultInstance() {
+        DelegateURLStreamHandlerFactory streamHandlerFactory = new DelegateURLStreamHandlerFactory();
+
+        VestigeReaper vestigeReaper = new VestigeReaper();
+        Thread workerCreatorReaperThread = new Thread(vestigeReaper, "vestige-reaper");
+        workerCreatorReaperThread.setDaemon(true);
+        workerCreatorReaperThread.start();
+
+        VestigeExecutor vestigeExecutor = new VestigeExecutor();
+        vestigeReaper.addReapable(vestigeExecutor, vestigeExecutor.getThreadReaperHelper());
+
+        return new VestigeCoreContext(streamHandlerFactory, vestigeReaper, vestigeExecutor);
+    }
+
+    public VestigeCoreContext(final DelegateURLStreamHandlerFactory streamHandlerFactory, final VestigeReaper vestigeReaper, final VestigeExecutor vestigeExecutor) {
         this.streamHandlerFactory = streamHandlerFactory;
+        this.vestigeReaper = vestigeReaper;
         this.vestigeExecutor = vestigeExecutor;
     }
 
@@ -43,6 +61,10 @@ public final class VestigeCoreContext {
 
     public DelegateURLStreamHandlerFactory getStreamHandlerFactory() {
         return streamHandlerFactory;
+    }
+
+    public VestigeReaper getVestigeReaper() {
+        return vestigeReaper;
     }
 
     public VestigeExecutor getVestigeExecutor() {

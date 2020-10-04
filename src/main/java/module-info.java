@@ -14,6 +14,8 @@ module fr.gaellalire.vestige.core {
 
     exports fr.gaellalire.vestige.core.url;
 
+    exports fr.gaellalire.vestige.core.weak;
+
     exports fr.gaellalire.vestige.core;
 
     requires static java.logging;

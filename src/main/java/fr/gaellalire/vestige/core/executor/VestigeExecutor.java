@@ -16,117 +16,39 @@
 
 package fr.gaellalire.vestige.core.executor;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.LinkedList;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
-import fr.gaellalire.vestige.core.ModuleEncapsulationEnforcer;
-import fr.gaellalire.vestige.core.VestigeClassLoader;
-import fr.gaellalire.vestige.core.VestigeClassLoaderConfiguration;
-import fr.gaellalire.vestige.core.executor.callable.ClassForName;
 import fr.gaellalire.vestige.core.executor.callable.CreateThread;
-import fr.gaellalire.vestige.core.executor.callable.CreateVestigeClassLoader;
-import fr.gaellalire.vestige.core.executor.callable.InvokeMethod;
-import fr.gaellalire.vestige.core.parser.StringParser;
-import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
+import fr.gaellalire.vestige.core.weak.ThreadReaperHelper;
 
 /**
  * @author Gael Lalire
  */
 public final class VestigeExecutor {
 
-    private LinkedList<Runnable> tasks;
-
     private LinkedList<FutureTask<Thread>> workerCreationTasks = new LinkedList<FutureTask<Thread>>();
 
-    private Thread workerCreatorThread;
+    private ThreadReaperHelper threadReaperHelper;
 
     public VestigeExecutor() {
-        tasks = new LinkedList<Runnable>();
-        workerCreatorThread = new Thread(new VestigeExecutorWorkerFactory(workerCreationTasks), "vestige-worker-creator");
+        Thread workerCreatorThread = new Thread(new VestigeExecutorWorkerFactory(workerCreationTasks), "vestige-worker-creator");
         workerCreatorThread.setDaemon(true);
         workerCreatorThread.start();
-        Thread workerCreatorReaperThread = new Thread(new VestigeExecutorWorkerFactoryReaper(this, workerCreatorThread), "vestige-worker-creator-reaper");
-        workerCreatorReaperThread.setDaemon(true);
-        workerCreatorReaperThread.start();
+        threadReaperHelper = new ThreadReaperHelper(workerCreatorThread);
     }
 
-    public <V> Future<V> submit(final Callable<V> callable) {
-        FutureTask<V> futureTask = new FutureTask<V>(callable);
-        synchronized (tasks) {
-            tasks.addLast(futureTask);
-            tasks.notifyAll();
-        }
-        return futureTask;
+    public ThreadReaperHelper getThreadReaperHelper() {
+        return threadReaperHelper;
     }
 
-    public Object invoke(final ClassLoader contextClassLoader, final Method method, final Object obj, final Object... args)
-            throws InterruptedException, IllegalAccessException, InvocationTargetException {
-        Future<Object> submit = submit(new InvokeMethod(contextClassLoader, method, obj, args));
-        try {
-            return submit.get();
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else if (cause instanceof IllegalAccessException) {
-                throw (IllegalAccessException) cause;
-            } else if (cause instanceof InvocationTargetException) {
-                throw (InvocationTargetException) cause;
-            }
-            throw new Error("Unknown throwable", cause);
-        }
-    }
-
-    public <E> VestigeClassLoader<E> createVestigeClassLoader(final ClassLoader parent, final VestigeClassLoaderConfiguration[][] vestigeClassloadersList,
-            final StringParser classStringParser, final StringParser resourceStringParser, final ModuleEncapsulationEnforcer moduleEncapsulationEnforcer,
-            final VestigeResourceLocator... urls) throws InterruptedException {
-        Future<VestigeClassLoader<E>> submit = submit(
-                new CreateVestigeClassLoader<E>(parent, vestigeClassloadersList, classStringParser, resourceStringParser, moduleEncapsulationEnforcer, urls));
-        try {
-            return submit.get();
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            }
-            throw new Error("Unknown throwable", cause);
-        }
-    }
-
-    /**
-     * Some class keep stack trace.
-     * @throws InterruptedException
-     */
-    public Class<?> classForName(final ClassLoader loader, final String className) throws ClassNotFoundException, InterruptedException {
-        Future<Class<?>> submit = submit(new ClassForName(loader, className));
-        try {
-            return submit.get();
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else if (cause instanceof ClassNotFoundException) {
-                throw (ClassNotFoundException) cause;
-            }
-            throw new Error("Unknown throwable", cause);
-        }
-    }
-
-    public Thread createWorker(final String name, final boolean daemon, final int maxActions) throws InterruptedException {
+    public VestigeWorker createWorker(final String name, final boolean daemon, final int maxActions) throws InterruptedException {
         if (maxActions < 0) {
             throw new IllegalArgumentException("maxActions must be positive integer");
         }
+        final LinkedList<Runnable> tasks = new LinkedList<Runnable>();
+
         Runnable runnable;
         if (maxActions != 0) {
             runnable = new Runnable() {
@@ -172,7 +94,7 @@ public final class VestigeExecutor {
         }
         FutureTask<Thread> futureTask;
         synchronized (workerCreationTasks) {
-            futureTask = new FutureTask<Thread>(new CreateThread(name, runnable));
+            futureTask = new FutureTask<Thread>(new CreateThread(null, runnable, name, 0));
             workerCreationTasks.addLast(futureTask);
             workerCreationTasks.notifyAll();
         }
@@ -191,7 +113,7 @@ public final class VestigeExecutor {
         thread.setContextClassLoader(null);
         thread.setDaemon(daemon);
         thread.start();
-        return thread;
+        return new VestigeWorker(thread, tasks);
     }
 
 }

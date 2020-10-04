@@ -14,28 +14,24 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core;
+package fr.gaellalire.vestige.core.weak;
 
 import java.lang.ref.WeakReference;
-import java.util.TimerTask;
 
 /**
  * @author Gael Lalire
  */
-public final class WeakTimerTask extends TimerTask {
+public final class WeakRunnable implements Runnable {
 
     private WeakReference<Runnable> weakReference;
 
-    public WeakTimerTask(final Runnable r) {
+    public WeakRunnable(final Runnable r) {
         weakReference = new WeakReference<Runnable>(r);
     }
 
-    @Override
     public void run() {
         Runnable runnable = weakReference.get();
-        if (runnable == null) {
-            cancel();
-        } else {
+        if (runnable != null) {
             runnable.run();
         }
     }

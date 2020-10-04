@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 The Apache Software Foundation.
+ * Copyright 2020 The Apache Software Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,22 @@
  * limitations under the License.
  */
 
-package fr.gaellalire.vestige.core;
-
-import java.lang.ref.WeakReference;
+package fr.gaellalire.vestige.core.weak;
 
 /**
  * @author Gael Lalire
  */
-public final class WeakRunnable implements Runnable {
+public class ThreadReaperHelper implements ReaperHelper {
 
-    private WeakReference<Runnable> weakReference;
+    private Thread thread;
 
-    public WeakRunnable(final Runnable r) {
-        weakReference = new WeakReference<Runnable>(r);
+    public ThreadReaperHelper(final Thread thread) {
+        this.thread = thread;
     }
 
-    public void run() {
-        Runnable runnable = weakReference.get();
-        if (runnable != null) {
-            runnable.run();
-        }
+    @Override
+    public void reap() {
+        thread.interrupt();
     }
 
 }
