@@ -23,6 +23,8 @@ import java.util.regex.Pattern;
  */
 public class PatternStringParser implements StringParser {
 
+    private static final long serialVersionUID = -8603419945790653901L;
+
     private Pattern pattern;
 
     private int matchValue;

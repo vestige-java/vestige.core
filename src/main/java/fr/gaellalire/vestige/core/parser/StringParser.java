@@ -16,11 +16,13 @@
 
 package fr.gaellalire.vestige.core.parser;
 
+import java.io.Serializable;
+
 /**
  * @author Gael Lalire
  */
-public interface StringParser {
+public interface StringParser extends Serializable {
 
-    int match(final CharSequence sequence);
+    int match(CharSequence sequence);
 
 }

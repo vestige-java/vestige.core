@@ -21,6 +21,8 @@ package fr.gaellalire.vestige.core.parser;
  */
 public class ClassStringParser implements StringParser {
 
+    private static final long serialVersionUID = -4191524724028672008L;
+
     private StringParser resourcesStringParser;
 
     public ClassStringParser(final StringParser resourcesStringParser) {

@@ -16,12 +16,10 @@
 
 package fr.gaellalire.vestige.core.parser;
 
-import java.io.Serializable;
-
 /**
  * @author Gael Lalire
  */
-public class IntegerStateStringParser implements StringParser, Serializable {
+public class IntegerStateStringParser implements StringParser {
 
     private static final long serialVersionUID = -903818594895153214L;
 
@@ -39,7 +37,8 @@ public class IntegerStateStringParser implements StringParser, Serializable {
 
     private int defaultValue;
 
-    public IntegerStateStringParser(final char firstCharacter, final short[] characterIds, final int initialState, final int[] stateByCharacterIdAndState, final int statesNumber, final int[] data, final int defaultValue) {
+    public IntegerStateStringParser(final char firstCharacter, final short[] characterIds, final int initialState, final int[] stateByCharacterIdAndState, final int statesNumber,
+            final int[] data, final int defaultValue) {
         this.firstCharacter = firstCharacter;
         this.characterIds = characterIds;
         this.initialState = initialState;

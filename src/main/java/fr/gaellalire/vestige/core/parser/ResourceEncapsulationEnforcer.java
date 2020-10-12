@@ -25,6 +25,8 @@ import fr.gaellalire.vestige.core.VestigeClassLoader;
  */
 public final class ResourceEncapsulationEnforcer implements StringParser {
 
+    private static final long serialVersionUID = -3798673426048299757L;
+
     private int enforceValue;
 
     private StringParser delegate;

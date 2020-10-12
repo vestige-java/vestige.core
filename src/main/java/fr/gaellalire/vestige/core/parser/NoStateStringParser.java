@@ -16,13 +16,10 @@
 
 package fr.gaellalire.vestige.core.parser;
 
-import java.io.Serializable;
-
-
 /**
  * @author Gael Lalire
  */
-public class NoStateStringParser implements StringParser, Serializable {
+public class NoStateStringParser implements StringParser {
 
     private static final long serialVersionUID = -6990234647843162301L;
 
