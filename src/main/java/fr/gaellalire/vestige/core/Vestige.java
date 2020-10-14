@@ -30,6 +30,7 @@ import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 import fr.gaellalire.vestige.core.parser.ClassStringParser;
@@ -150,11 +151,10 @@ public final class Vestige {
         String[] dargs = new String[args.length - argIndex - 1];
         System.arraycopy(args, argIndex + 1, dargs, 0, dargs.length);
 
-        run(before, name, urls, mainClass, dargs);
+        runCallableLoop(run(before, name, urls, mainClass, dargs));
     }
 
-    public static VestigeClassLoader<String> run(final Pattern before, final String name, final VestigeResourceLocator[] urls, final String mainClass, final String[] dargs)
-            throws Exception {
+    public static Object run(final Pattern before, final String name, final VestigeResourceLocator[] urls, final String mainClass, final String[] dargs) throws Exception {
         ModuleEncapsulationEnforcer moduleEncapsulationEnforcer = null;
         final VestigeClassLoader<String> vestigeClassLoader;
         if (before != null) {
@@ -197,18 +197,17 @@ public final class Vestige {
                 return null;
             }
         });
-        runMain(vestigeClassLoader, vestigeClassLoader.loadClass(mainClass), vestigeCoreContext, dargs);
-        return vestigeClassLoader;
+        return runMain(vestigeClassLoader, vestigeClassLoader.loadClass(mainClass), vestigeCoreContext, dargs);
     }
 
-    public static void runMain(final ClassLoader classLoader, final Class<?> mainClass, final VestigeCoreContext vestigeCoreContext, final String[] dargs) throws Exception {
+    public static Object runMain(final ClassLoader classLoader, final Class<?> mainClass, final VestigeCoreContext vestigeCoreContext, final String[] dargs) throws Exception {
         if (classLoader == null) {
             try {
                 Method method = mainClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
-                method.invoke(null, new Object[] {vestigeCoreContext, dargs});
+                return method.invoke(null, new Object[] {vestigeCoreContext, dargs});
             } catch (NoSuchMethodException e) {
                 Method method = mainClass.getMethod("main", String[].class);
-                method.invoke(null, new Object[] {dargs});
+                return method.invoke(null, new Object[] {dargs});
             }
         } else {
             Thread currentThread = Thread.currentThread();
@@ -217,7 +216,7 @@ public final class Vestige {
                 Method method = mainClass.getMethod("vestigeCoreMain", VestigeCoreContext.class, String[].class);
                 currentThread.setContextClassLoader(classLoader);
                 try {
-                    method.invoke(null, new Object[] {vestigeCoreContext, dargs});
+                    return method.invoke(null, new Object[] {vestigeCoreContext, dargs});
                 } finally {
                     currentThread.setContextClassLoader(contextClassLoader);
                 }
@@ -225,11 +224,19 @@ public final class Vestige {
                 Method method = mainClass.getMethod("main", String[].class);
                 currentThread.setContextClassLoader(classLoader);
                 try {
-                    method.invoke(null, new Object[] {dargs});
+                    return method.invoke(null, new Object[] {dargs});
                 } finally {
                     currentThread.setContextClassLoader(contextClassLoader);
                 }
             }
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public static void runCallableLoop(Object object) throws Exception {
+        while (object instanceof Callable) {
+            object = ((Callable<Object>) object).call();
+        }
+    }
+
 }

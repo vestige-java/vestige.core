@@ -256,10 +256,10 @@ public final class JPMSVestige {
             }
         }
 
-        run(bind, jdk, manyLoaders, name, urls, beforePaths, paths, roots, mainModule, mainClass, dargs);
+        Vestige.runCallableLoop(run(bind, jdk, manyLoaders, name, urls, beforePaths, paths, roots, mainModule, mainClass, dargs));
     }
 
-    public static VestigeClassLoader<String> run(final boolean bind, final boolean jdk, final boolean manyLoaders, final String name, final VestigeResourceLocator[] urls,
+    public static Object run(final boolean bind, final boolean jdk, final boolean manyLoaders, final String name, final VestigeResourceLocator[] urls,
             final Path[] beforePaths, final Path[] paths, final List<String> roots, final String mainModule, final String mainClass, final String[] dargs) throws Exception {
         ModuleLayer boot = ModuleLayer.boot();
         Configuration cf;
@@ -349,29 +349,27 @@ public final class JPMSVestige {
             }
             mainClassNotNull = optionalMainClass.get();
         }
-        runMain(classLoader, classLoader.loadClass(mainClassNotNull), controller, vestigeCoreContext, dargs);
-
-        return vestigeClassLoader;
+        return runMain(classLoader, classLoader.loadClass(mainClassNotNull), controller, vestigeCoreContext, dargs);
     }
 
-    public static void runMain(final ClassLoader classLoader, final Class<?> mainClass, final Controller controller, final VestigeCoreContext vestigeCoreContext,
+    public static Object runMain(final ClassLoader classLoader, final Class<?> mainClass, final Controller controller, final VestigeCoreContext vestigeCoreContext,
             final String[] dargs) throws Exception {
         try {
             Method method = mainClass.getMethod("vestigeCoreMain", Controller.class, VestigeCoreContext.class, String[].class);
             if (classLoader == null) {
-                method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
+                return method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
             } else {
                 Thread currentThread = Thread.currentThread();
                 ClassLoader contextClassLoader = currentThread.getContextClassLoader();
                 currentThread.setContextClassLoader(classLoader);
                 try {
-                    method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
+                    return method.invoke(null, new Object[] {controller, vestigeCoreContext, dargs});
                 } finally {
                     currentThread.setContextClassLoader(contextClassLoader);
                 }
             }
         } catch (NoSuchMethodException e) {
-            Vestige.runMain(classLoader, mainClass, vestigeCoreContext, dargs);
+            return Vestige.runMain(classLoader, mainClass, vestigeCoreContext, dargs);
         }
     }
 }
