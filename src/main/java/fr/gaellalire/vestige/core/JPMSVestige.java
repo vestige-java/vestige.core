@@ -30,7 +30,7 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.lang.module.ResolvedModule;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -60,7 +60,7 @@ import fr.gaellalire.vestige.core.url.DelegateURLStreamHandlerFactory;
  */
 public final class JPMSVestige {
 
-    public static void addModulepath(final File directory, final List<Path> urlList, final String classpath) throws MalformedURLException {
+    public static void addModulepath(final File directory, final List<Path> urlList, final String classpath) {
         int pindex = 0;
         int index = classpath.indexOf(File.pathSeparatorChar);
         while (index != -1) {
@@ -76,12 +76,15 @@ public final class JPMSVestige {
     }
 
     public static void createEnforcerConfiguration(final Map<File, String> moduleNamesByFile, final Map<String, String> moduleNameByPackageName,
-            final Set<String> encapsulatedPackageNames, final Configuration configuration) throws IOException {
+            final Set<String> encapsulatedPackageNames, final Configuration configuration) {
         for (ResolvedModule resolvedModule : configuration.modules()) {
             ModuleReference reference = resolvedModule.reference();
             ModuleDescriptor descriptor = reference.descriptor();
             String name = descriptor.name();
-            moduleNamesByFile.put(new File(reference.location().get()), name);
+            Optional<URI> location = reference.location();
+            if (location.isPresent()) {
+                moduleNamesByFile.put(new File(location.get()), name);
+            }
             Set<String> packages = descriptor.packages();
             if (!descriptor.isAutomatic() && !descriptor.isOpen()) {
                 Set<String> openPackageNames = descriptor.opens().stream().filter(opens -> opens.targets().size() == 0).map(opens -> opens.source()).collect(Collectors.toSet());
@@ -162,6 +165,7 @@ public final class JPMSVestige {
         }
 
         if ("mp".equals(option)) {
+            // nothing to do
         } else if ("emp".equals(option)) {
             if (modulePathFile == null) {
                 throw new IllegalArgumentException("Expect at least VESTIGE_CORE_MODULEPATH_FILE in env mode");
@@ -256,8 +260,7 @@ public final class JPMSVestige {
     }
 
     public static VestigeClassLoader<String> run(final boolean bind, final boolean jdk, final boolean manyLoaders, final String name, final VestigeResourceLocator[] urls,
-            final Path[] beforePaths, final Path[] paths, final List<String> roots, final String mainModule, final String mainClass, final String[] dargs)
-            throws IOException, Exception {
+            final Path[] beforePaths, final Path[] paths, final List<String> roots, final String mainModule, final String mainClass, final String[] dargs) throws Exception {
         ModuleLayer boot = ModuleLayer.boot();
         Configuration cf;
         if (bind) {

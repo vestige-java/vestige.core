@@ -19,13 +19,12 @@ package fr.gaellalire.vestige.core;
 import java.util.HashMap;
 import java.util.Map;
 
-
 /**
  * @author Gael Lalire
  */
 public final class StackedHandlerUtils {
 
-    private static Map<Class<?>, Object> DEFAULT_HANDLER_BY_CLASS = new HashMap<Class<?>, Object>();
+    private static final Map<Class<?>, Object> DEFAULT_HANDLER_BY_CLASS = new HashMap<Class<?>, Object>();
 
     private StackedHandlerUtils() {
     }

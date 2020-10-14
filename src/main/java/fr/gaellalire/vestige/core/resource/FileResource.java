@@ -33,6 +33,7 @@ public class FileResource implements VestigeResource {
     private File file;
 
     public FileResource(final URL baseURL, final File file) {
+        this.baseURL = baseURL;
         this.file = file;
     }
 

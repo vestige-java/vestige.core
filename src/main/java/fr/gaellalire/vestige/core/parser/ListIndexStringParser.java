@@ -23,6 +23,8 @@ import java.util.List;
  */
 public class ListIndexStringParser implements StringParser {
 
+    private static final long serialVersionUID = -6463474940419425087L;
+
     private List<String> list;
 
     private int unmatchValue;

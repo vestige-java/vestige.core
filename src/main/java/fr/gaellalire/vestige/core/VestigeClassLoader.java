@@ -41,7 +41,7 @@ import fr.gaellalire.vestige.core.resource.VestigeResourceLocator;
  */
 public final class VestigeClassLoader<E> extends SecureClassLoader implements VestigeClassLoaderConfiguration {
 
-    public static VestigeCoreURLStreamHandler URL_STREAM_HANDLER = new VestigeCoreURLStreamHandler();
+    public static final VestigeCoreURLStreamHandler URL_STREAM_HANDLER = new VestigeCoreURLStreamHandler();
 
     public static final boolean GET_CLASS_LOADING_LOCK_METHOD_EXISTS;
 
@@ -136,8 +136,10 @@ public final class VestigeClassLoader<E> extends SecureClassLoader implements Ve
     }
 
     public void close(final Object dataProtector) throws IOException {
-        for (VestigeResourceLocator vestigeResourceLocator : jarFiles) {
-            vestigeResourceLocator.close();
+        if (this.dataProtector == dataProtector) {
+            for (VestigeResourceLocator vestigeResourceLocator : jarFiles) {
+                vestigeResourceLocator.close();
+            }
         }
     }
 
