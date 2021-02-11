@@ -35,7 +35,7 @@ public interface VestigeResource {
     URL getCodeSourceURL();
 
     /**
-     * Returns the code signers for the Resource, or null if none.
+     * Returns the code signers for the Resource, or null if none. This method should be called after {@link #getInputStream()} is read to the end of the stream
      */
     CodeSigner[] getCodeSigners();
 
