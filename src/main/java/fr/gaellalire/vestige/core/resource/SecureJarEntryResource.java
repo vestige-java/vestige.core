@@ -22,6 +22,8 @@ import java.net.URL;
 import java.security.CodeSigner;
 import java.util.jar.JarEntry;
 
+import fr.gaellalire.vestige.core.zip.ZipArchiveEntry;
+
 /**
  * @author Gael Lalire
  */
@@ -29,29 +31,23 @@ public class SecureJarEntryResource implements VestigeResource {
 
     private String name;
 
-    private int position;
-
     private SecureJarFileResourceLocator jarFileResourceLocator;
+
+    private ZipArchiveEntry zipArchiveEntry;
 
     private JarEntry jarEntry;
 
     private URL codeSourceURL;
 
-    public SecureJarEntryResource(final SecureJarFileResourceLocator jarFileResourceLocator, final int position, final JarEntry jarEntry, final String name,
-            final URL codeSourceURL) {
+    public SecureJarEntryResource(final SecureJarFileResourceLocator jarFileResourceLocator, final ZipArchiveEntry zipArchiveEntry, final String name, final URL codeSourceURL) {
         this.jarFileResourceLocator = jarFileResourceLocator;
-        this.position = position;
+        this.zipArchiveEntry = zipArchiveEntry;
         this.name = name;
-        this.jarEntry = jarEntry;
         this.codeSourceURL = codeSourceURL;
     }
 
-    public int getPosition() {
-        return position;
-    }
-
-    public JarEntry getJarEntry() {
-        return jarEntry;
+    public ZipArchiveEntry getZipArchiveEntry() {
+        return zipArchiveEntry;
     }
 
     public void setJarEntry(final JarEntry jarEntry) {

@@ -22,15 +22,18 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+
+import fr.gaellalire.vestige.core.zip.SeekableByteChannel;
+import fr.gaellalire.vestige.core.zip.ZipArchiveEntry;
+import fr.gaellalire.vestige.core.zip.ZipFile;
 
 /**
  * @author Gael Lalire
@@ -43,7 +46,7 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
 
     private static final String META_INF_VERSIONS = META_INF + "versions/";
 
-    private SecureJarFile secureJarFile;
+    private SecureFile secureJarFile;
 
     private Manifest manifest;
 
@@ -68,6 +71,8 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
     }
 
     private Map<String, SecureJarEntryResource> jarEntries = new HashMap<String, SecureJarEntryResource>();
+
+    private volatile boolean opened;
 
     public String getSpecTitle() {
         return specTitle;
@@ -97,7 +102,7 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
         return sealed;
     }
 
-    public SecureJarFileResourceLocator(final SecureJarFile secureJarFile) {
+    public SecureJarFileResourceLocator(final SecureFile secureJarFile) {
         this.secureJarFile = secureJarFile;
         try {
             codeSourceURL = secureJarFile.getFile().toURI().toURL();
@@ -106,69 +111,114 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
         }
     }
 
-    public SecureJarFileResourceLocator(final SecureJarFile secureJarFile, final URL codeSourceURL) {
+    public SecureJarFileResourceLocator(final SecureFile secureJarFile, final URL codeSourceURL) {
         this.secureJarFile = secureJarFile;
         this.codeSourceURL = codeSourceURL;
     }
 
+    private ZipFile zipFile;
+
     private void openIfNot() throws IOException {
-        int position = 0;
-
-        ZipInputStream zipInputStream = new ZipInputStream(secureJarFile.getInputStream());
-        ZipEntry nextZipEntry = zipInputStream.getNextEntry();
-        if (nextZipEntry != null && nextZipEntry.getName().equalsIgnoreCase(META_INF)) {
-            nextZipEntry = zipInputStream.getNextEntry();
-            position++;
+        if (opened) {
+            return;
         }
-        if (nextZipEntry != null && nextZipEntry.getName().equalsIgnoreCase(JarFile.MANIFEST_NAME)) {
-            jarEntries.put(nextZipEntry.getName(), new SecureJarEntryResource(this, position, new JarEntry(nextZipEntry), nextZipEntry.getName(), codeSourceURL));
-            position++;
-        }
-
-        Map<String, Integer> versionByName = new HashMap<String, Integer>();
-        JarInputStream jarInputStream = new JarInputStream(secureJarFile.getInputStream());
-        manifest = jarInputStream.getManifest();
-        boolean multiReleaseJar = Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
-        JarEntry nextJarEntry = jarInputStream.getNextJarEntry();
-        while (nextJarEntry != null) {
-            String name = nextJarEntry.getName();
-            if (versionByName.get(name) == null) {
-                jarEntries.put(name, new SecureJarEntryResource(this, position, nextJarEntry, name, codeSourceURL));
+        synchronized (jarEntries) {
+            if (opened) {
+                return;
             }
-            if (multiReleaseJar && VERSION != -1 && !nextJarEntry.isDirectory() && name.startsWith(META_INF_VERSIONS)) {
-                int sep = name.indexOf('/', META_INF_VERSIONS.length() + 1);
-                if (sep != -1) {
-                    try {
-                        int localVersion = Integer.parseInt(name.substring(META_INF_VERSIONS.length(), sep));
-                        if (localVersion <= VERSION) {
-                            Integer currentVersion = versionByName.get(name);
-                            if (currentVersion == null || localVersion > currentVersion) {
-                                name = name.substring(sep + 1);
-                                versionByName.put(name, localVersion);
-                                jarEntries.put(name, new SecureJarEntryResource(this, position, nextJarEntry, name, codeSourceURL));
+
+            zipFile = new ZipFile(new SeekableByteChannel() {
+
+                private SeekableInputStream sis = secureJarFile.getInputStream();
+
+                private boolean open = true;
+
+                @Override
+                public boolean isOpen() {
+                    return open;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    open = false;
+                }
+
+                @Override
+                public long size() throws IOException {
+                    return sis.size();
+                }
+
+                @Override
+                public int read(final ByteBuffer dst) throws IOException {
+                    return sis.read(dst);
+                }
+
+                @Override
+                public void position(final long newPosition) throws IOException {
+                    sis.seek(newPosition);
+                }
+
+                @Override
+                public long position() throws IOException {
+                    return sis.getPosition();
+                }
+            });
+
+            Enumeration<ZipArchiveEntry> entries = zipFile.getEntries();
+            while (entries.hasMoreElements()) {
+                ZipArchiveEntry nextZipEntry = entries.nextElement();
+                jarEntries.put(nextZipEntry.getName(), new SecureJarEntryResource(this, nextZipEntry, nextZipEntry.getName(), codeSourceURL));
+            }
+
+            Map<String, Integer> versionByName = new HashMap<String, Integer>();
+            JarInputStream jarInputStream = new JarInputStream(secureJarFile.getInputStream());
+            try {
+                manifest = jarInputStream.getManifest();
+                boolean multiReleaseJar = Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
+                JarEntry nextJarEntry = jarInputStream.getNextJarEntry();
+                while (nextJarEntry != null) {
+                    String name = nextJarEntry.getName();
+                    SecureJarEntryResource secureJarEntryResource = jarEntries.get(name);
+                    if (versionByName.get(name) == null) {
+                        secureJarEntryResource.setJarEntry(nextJarEntry);
+                    }
+                    if (multiReleaseJar && VERSION != -1 && !nextJarEntry.isDirectory() && name.startsWith(META_INF_VERSIONS)) {
+                        int sep = name.indexOf('/', META_INF_VERSIONS.length() + 1);
+                        if (sep != -1) {
+                            try {
+                                int localVersion = Integer.parseInt(name.substring(META_INF_VERSIONS.length(), sep));
+                                if (localVersion <= VERSION) {
+                                    Integer currentVersion = versionByName.get(name);
+                                    if (currentVersion == null || localVersion > currentVersion) {
+                                        name = name.substring(sep + 1);
+                                        versionByName.put(name, localVersion);
+                                        jarEntries.put(name, secureJarEntryResource);
+                                    }
+                                }
+                            } catch (NumberFormatException e) {
                             }
                         }
-                    } catch (NumberFormatException e) {
                     }
+                    jarInputStream.closeEntry();
+                    nextJarEntry = jarInputStream.getNextJarEntry();
+                }
+            } finally {
+                jarInputStream.close();
+            }
+
+            Attributes attr = manifest.getMainAttributes();
+            if (attr != null) {
+                specTitle = attr.getValue(Attributes.Name.SPECIFICATION_TITLE);
+                specVersion = attr.getValue(Attributes.Name.SPECIFICATION_VERSION);
+                specVendor = attr.getValue(Attributes.Name.SPECIFICATION_VENDOR);
+                implTitle = attr.getValue(Attributes.Name.IMPLEMENTATION_TITLE);
+                implVersion = attr.getValue(Attributes.Name.IMPLEMENTATION_VERSION);
+                implVendor = attr.getValue(Attributes.Name.IMPLEMENTATION_VENDOR);
+                if ("true".equalsIgnoreCase(attr.getValue(Attributes.Name.SEALED))) {
+                    this.sealed = true;
                 }
             }
-            jarInputStream.closeEntry();
-            nextJarEntry = jarInputStream.getNextJarEntry();
-            position++;
-        }
-        jarInputStream.close();
-
-        Attributes attr = manifest.getMainAttributes();
-        if (attr != null) {
-            specTitle = attr.getValue(Attributes.Name.SPECIFICATION_TITLE);
-            specVersion = attr.getValue(Attributes.Name.SPECIFICATION_VERSION);
-            specVendor = attr.getValue(Attributes.Name.SPECIFICATION_VENDOR);
-            implTitle = attr.getValue(Attributes.Name.IMPLEMENTATION_TITLE);
-            implVersion = attr.getValue(Attributes.Name.IMPLEMENTATION_VERSION);
-            implVendor = attr.getValue(Attributes.Name.IMPLEMENTATION_VENDOR);
-            if ("true".equalsIgnoreCase(attr.getValue(Attributes.Name.SEALED))) {
-                this.sealed = true;
-            }
+            opened = true;
         }
     }
 
@@ -177,6 +227,7 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
         try {
             openIfNot();
         } catch (IOException e) {
+            // e.printStackTrace();
             return null;
         }
         return jarEntries.get(resourceName);
@@ -285,15 +336,7 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
     }
 
     public InputStream getInputStream(final SecureJarEntryResource jarEntryResource) throws IOException {
-        ZipInputStream jarInputStream = new ZipInputStream(secureJarFile.getInputStream());
-        int position = jarEntryResource.getPosition();
-        jarInputStream.getNextEntry();
-        while (position != 0) {
-            jarInputStream.closeEntry();
-            jarInputStream.getNextEntry();
-            position--;
-        }
-        return jarInputStream;
+        return zipFile.getInputStream(jarEntryResource.getZipArchiveEntry());
     }
 
 }

@@ -1,5 +1,7 @@
 module fr.gaellalire.vestige.core {
 
+    exports fr.gaellalire.vestige.core.zip;
+
     exports fr.gaellalire.vestige.core.executor;
 
     exports fr.gaellalire.vestige.core.executor.callable;
