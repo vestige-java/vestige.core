@@ -20,7 +20,6 @@ package fr.gaellalire.vestige.core.zip;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipException;
 
@@ -184,8 +183,15 @@ public class ExtraFieldUtils {
                 break LOOP;
             }
             try {
-                ZipExtraField ze = Objects.requireNonNull(parsingBehavior.createExtraField(headerId), "createExtraField must not return null");
-                v.add(Objects.requireNonNull(parsingBehavior.fill(ze, data, start + WORD, length, local), "fill must not return null"));
+                ZipExtraField ze = parsingBehavior.createExtraField(headerId);
+                if (ze == null) {
+                    throw new NullPointerException("createExtraField must not return null");
+                }
+                ZipExtraField fill = parsingBehavior.fill(ze, data, start + WORD, length, local);
+                if (fill == null) {
+                    throw new NullPointerException("fill must not return null");
+                }
+                v.add(fill);
                 start += length + WORD;
             } catch (final InstantiationException ie) {
                 throw (ZipException) new ZipException(ie.getMessage()).initCause(ie);

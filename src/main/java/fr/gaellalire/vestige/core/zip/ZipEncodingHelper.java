@@ -20,8 +20,8 @@ package fr.gaellalire.vestige.core.zip;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
+import java.util.Arrays;
 
 /**
  * Static helper functions for robustly encoding file names in zip files.
@@ -71,7 +71,7 @@ public abstract class ZipEncodingHelper {
         if ("UTF-8".equalsIgnoreCase(charsetName)) {
             return true;
         }
-        for (final String alias : StandardCharsets.UTF_8.aliases()) {
+        for (final String alias : Arrays.asList("UTF8", "unicode-1-1-utf-8")) {
             if (alias.equalsIgnoreCase(charsetName)) {
                 return true;
             }
