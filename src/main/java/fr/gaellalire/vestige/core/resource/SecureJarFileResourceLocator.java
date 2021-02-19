@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -72,8 +73,6 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
 
     private Map<String, SecureJarEntryResource> jarEntries = new HashMap<String, SecureJarEntryResource>();
 
-    private volatile boolean opened;
-
     public String getSpecTitle() {
         return specTitle;
     }
@@ -116,15 +115,17 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
         this.codeSourceURL = codeSourceURL;
     }
 
-    private ZipFile zipFile;
+    private AtomicReference<ZipFile> zipFileAtomicReference = new AtomicReference<ZipFile>(null);
 
-    private void openIfNot() throws IOException {
-        if (opened) {
-            return;
+    private ZipFile openIfNot() throws IOException {
+        ZipFile zipFile = zipFileAtomicReference.get();
+        if (zipFile != null) {
+            return zipFile;
         }
         synchronized (jarEntries) {
-            if (opened) {
-                return;
+            zipFile = zipFileAtomicReference.get();
+            if (zipFile != null) {
+                return zipFile;
             }
 
             zipFile = new ZipFile(new SeekableByteChannel() {
@@ -163,6 +164,8 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
                     return sis.getPosition();
                 }
             });
+
+            jarEntries.clear();
 
             Enumeration<ZipArchiveEntry> entries = zipFile.getEntries();
             while (entries.hasMoreElements()) {
@@ -218,7 +221,10 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
                     this.sealed = true;
                 }
             }
-            opened = true;
+
+            zipFileAtomicReference.set(zipFile);
+
+            return zipFile;
         }
     }
 
@@ -227,10 +233,11 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
         try {
             openIfNot();
         } catch (IOException e) {
-            // e.printStackTrace();
             return null;
         }
-        return jarEntries.get(resourceName);
+        synchronized (jarEntries) {
+            return jarEntries.get(resourceName);
+        }
     }
 
     @Override
@@ -332,10 +339,16 @@ public class SecureJarFileResourceLocator implements VestigeResourceLocator, Pac
     }
 
     public void close() throws IOException {
-        secureJarFile.close();
+        // cannot close secureJarFile, it has been verified
+        // we can close zipFile
+        ZipFile zipFile = zipFileAtomicReference.getAndSet(null);
+        if (zipFile != null) {
+            zipFile.close();
+        }
     }
 
     public InputStream getInputStream(final SecureJarEntryResource jarEntryResource) throws IOException {
+        ZipFile zipFile = openIfNot();
         return zipFile.getInputStream(jarEntryResource.getZipArchiveEntry());
     }
 

@@ -16,6 +16,7 @@
 
 package fr.gaellalire.vestige.core.resource;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -28,7 +29,7 @@ import java.nio.channels.FileChannel.MapMode;
  * This class lock the file, so {@link #getInputStream()} will always return the same data allowing third party to verify its signature.
  * @author Gael Lalire
  */
-public class SecureFile {
+public class SecureFile implements Closeable {
 
     public static enum Mode {
 
@@ -64,16 +65,21 @@ public class SecureFile {
             randomAccessFile = new RandomAccessFile(file, "r");
             channel = randomAccessFile.getChannel();
             channel.lock(0, Long.MAX_VALUE, true);
+            size = channel.size();
             break;
         case PRIVATE_MAP:
             randomAccessFile = new RandomAccessFile(file, "rw");
             channel = randomAccessFile.getChannel();
-            map = channel.map(MapMode.PRIVATE, 0, channel.size());
+            size = channel.size();
+            map = channel.map(MapMode.PRIVATE, 0, size);
             break;
         default:
             throw new IOException("Unknown mode " + mode);
         }
-        size = channel.size();
+    }
+
+    public Closeable getCloseable() {
+        return randomAccessFile;
     }
 
     public File getFile() {
@@ -236,7 +242,7 @@ public class SecureFile {
 
             @Override
             public long size() throws IOException {
-                return channel.size();
+                return size;
             }
 
         };
